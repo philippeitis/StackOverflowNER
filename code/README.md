@@ -12,8 +12,8 @@
 
 To extract the software entities from a given file run the following:
 
-```
-    python E2E_SoftNER.py --input_file_with_so_body xml_filted_body
+```bash
+python E2E_SoftNER.py --input_file_with_so_body xml_filted_body
 ```
 
 - It will save the predictions on the input file at `ner_preds.txt`
@@ -25,31 +25,31 @@ To extract the software entities from a given file run the following:
 
 # Running Attentive-BiLSTM NER Model:
 
-Downlaod all the pretrained in-domain word vectors and put them in the `resources/pretrained_word_vectors/`.
+Download all the pretrained in-domain word vectors and put them in the `resources/pretrained_word_vectors/`.
 
 Inside the `NER` folder run the following command:
 
-```
-    python train_so.py 
+```bash
+python train_so.py 
 ```
 
 
 By default it will show the evaluation on the `test` set. To evaluate on the dev set run the following command:
 
-```
-    python train_so.py -mode dev
+```bash
+python train_so.py -mode dev
 ```
 
 By default this code base will run on GPU. You can disable it by the `-use_gpu` paramerter as below:
 
-```
-    python train_so.py -use_gpu 0
+```bash
+python train_so.py -use_gpu 0
 ```
 
 By default this code base will run on GPU ID `0`. You can change the gpu id by the `-gpu_id` paramerter as below:
 
-```
-    python train_so.py -gpu_id 1
+```bash
+python train_so.py -gpu_id 1
 ```
 
 
@@ -58,67 +58,61 @@ By default this code base will run on GPU ID `0`. You can change the gpu id by t
 To read the dataset only use the loader_so.py file from `DataReader` folder as below:
 
 
-```
-    import loader_so
-    path_to_file = "../../resources/annotated_ner_data/StackOverflow/train.txt"
-    all_sentneces = loader_so.loader_so_text(path_to_file)
- 
+```python
+import loader_so
+path_to_file = "../../resources/annotated_ner_data/StackOverflow/train.txt"
+all_sentences = loader_so.loader_so_text(path_to_file)
 ```
 
 By default the `loader_so_text` function merges the following 6 entities to 3 as below: 
 
 ```
-    "Library_Function" -> "Function"
-    "Function_Name" -> "Function"
+"Library_Function" -> "Function"
+"Function_Name" -> "Function"
 
-    "Class_Name" -> "Class"
-    "Library_Class" -> "Class"
+"Class_Name" -> "Class"
+"Library_Class" -> "Class"
 
-    "Library_Variable" -> "Variable"
-    "Variable_Name" -> "Variable"
+"Library_Variable" -> "Variable"
+"Variable_Name" -> "Variable"
 
-    "Website" -> "Website"
-    "Organization" -> "Website"
-
+"Website" -> "Website"
+"Organization" -> "Website"
 ```
 
-To skip this merging, set `merge_tag= False` as below:
+To skip this merging, set `merge_tag=False` as below:
 
+```python
+import loader_so
+path_to_file = "../../resources/annotated_ner_data/StackOverflow/train.txt"
+all_sentences = loader_so.loader_so_text(path_to_file, merge_tag=False)
 ```
-    import loader_so
-    path_to_file = "../../resources/annotated_ner_data/StackOverflow/train.txt"
-    all_sentneces = loader_so.loader_so_text(path_to_file,merge_tag=False)
- 
-```
 
 
-By default the `loader_so_text` function will convert the 5 low frequency enttiy as "O". To skip this conversion, set `replace_low_freq_tags= False` as below:
+By default the `loader_so_text` function will convert the 5 low frequency entities as "O". To skip this conversion, set `replace_low_freq_tags= False` as below:
 
 
 
-```
-    import loader_so
-    path_to_file = "../../resources/annotated_ner_data/StackOverflow/train.txt"
-    all_sentneces = loader_so.loader_so_text(path_to_file, replace_low_freq_tags= False)
- 
+```python
+import loader_so
+path_to_file = "../../resources/annotated_ner_data/StackOverflow/train.txt"
+all_sentences = loader_so.loader_so_text(path_to_file, replace_low_freq_tags=False)
 ```
 
 # Run the Tokenizer:
 
-To tokenized the code-mixed texts from StackOverflow utilized the source codes insides the `SOTokenizer` folder as below:
+To tokenize the code-mixed texts from StackOverflow utilize the `SOTokenizer` library as below:
 
-```
-	import stokenizer
-	sentence = 'I do think that the request I send to my API should be more like {post=>{"kind"=>"GGG"}} and not {"kind"=>"GGG"}.'
-	tokens = stokenizer.tokenize(sentence)
-	print("tokens: ",tokens)
-
+```python
+import stokenizer
+sentence = 'I do think that the request I send to my API should be more like {post=>{"kind"=>"GGG"}} and not {"kind"=>"GGG"}.'
+tokens = stokenizer.tokenize(sentence)
+print("tokens: ",tokens)
 ```
 Tokenized Output:
 
 ```
-	tokens:  ['I', 'do', 'think', 'that', 'the', 'request', 'I', 'send', 'to', 'my', 'API', 'should', 'be', 'more', 'like', ' { post=> { "kind"=>"GGG" }  } ', 'and', 'not', ' { "kind"=>"GGG" } ', '.']
-
+tokens:  ['I', 'do', 'think', 'that', 'the', 'request', 'I', 'send', 'to', 'my', 'API', 'should', 'be', 'more', 'like', ' { post=> { "kind"=>"GGG" }  } ', 'and', 'not', ' { "kind"=>"GGG" } ', '.']
 ```
 # Resources:
 
