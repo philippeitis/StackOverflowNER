@@ -1,0 +1,18 @@
+Installing O
+on O
+Windows B-Operating_System
+Server I-Operating_System
+2012 B-Version
+R2 I-Version
+
+print B-Function
+( I-Function
+" I-Function
+HELLO I-Function
+WORLD I-Function
+" I-Function
+) I-Function
+
+Do O
+printf("AAAAA") B-Code_Block
+; I-Code_Block

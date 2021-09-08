@@ -1,6 +1,0 @@
-nltk
-ftfy
-fasttext
-kenlm
-bs4
-seqeval

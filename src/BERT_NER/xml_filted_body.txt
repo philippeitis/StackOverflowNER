@@ -1,0 +1,5 @@
+Installing on Windows Server 2012 R2
+
+print("HELLO WORLD")
+
+Do --INLINE_CODE_BEGIN---printf("AAAAA");--INLINE_CODE_END---
