@@ -38,7 +38,7 @@ from transformers import (
     AutoTokenizer,
     get_linear_schedule_with_warmup,
 )
-from utils_seg import convert_examples_to_features, get_labels, read_examples_from_file
+from utils import read_examples_from_file, get_labels, convert_examples_to_features
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -404,6 +404,8 @@ def parse_args():
 
 
 class Segmenter:
+    SPECIAL_LABELS = ("CTC_PRED:0", "CTC_PRED:1", "md_label:O", "md_label:Name")
+
     def __init__(self):
         args = parse_args()
         # Setup CUDA, GPU & distributed training
@@ -439,7 +441,8 @@ class Segmenter:
         set_seed(args)
 
         # Prepare CONLL-2003 task
-        labels = get_labels(args.labels)
+
+        labels = get_labels(args.labels, *self.SPECIAL_LABELS)
         num_labels = len(labels) - 4
         # Use cross entropy ignore index as padding label id so that only real label ids contribute to the loss later
         pad_token_label_id = CrossEntropyLoss().ignore_index
@@ -491,6 +494,7 @@ class Segmenter:
         self.labels = labels
         self.pad_token_label_id = pad_token_label_id
         self.args = args
+        self.label_map = {i: label for i, label in enumerate(self.labels)}
 
     def examples_to_dataset(self, examples):
         return self.features_to_dataset(self.examples_to_features(examples))
@@ -504,7 +508,7 @@ class Segmenter:
             cls_token_at_end=self.args.model_type in ["xlnet"],
             # xlnet has a cls token at the end
             cls_token=self.tokenizer.cls_token,
-            cls_token_segment_id=2 if self.args.model_type in ["xlnet"] else 0,
+            cls_token_block_id=2 if self.args.model_type in ["xlnet"] else 0,
             sep_token=self.tokenizer.sep_token,
             sep_token_extra=self.args.model_type in ["roberta"],
             # roberta uses an extra separator b/w pairs of sentences,
@@ -512,7 +516,7 @@ class Segmenter:
             pad_on_left=self.args.model_type in ["xlnet"],
             # pad on the left for xlnet
             pad_token=self.tokenizer.pad_token_id,
-            pad_token_md_id=self.tokenizer.pad_token_type_id,
+            pad_token_block_id=self.tokenizer.pad_token_type_id,
             pad_token_label_id=self.pad_token_label_id,
         )
 
@@ -521,10 +525,10 @@ class Segmenter:
         return TensorDataset(
             torch.tensor([f.input_ids for f in features], dtype=torch.long),
             torch.tensor([f.input_mask for f in features], dtype=torch.long),
-            torch.tensor([f.md_ids for f in features], dtype=torch.long),
+            torch.tensor([f.block_ids for f in features], dtype=torch.long),
             torch.tensor([f.label_ids for f in features], dtype=torch.long),
             torch.tensor([f.label_ids_ctc for f in features], dtype=torch.long),
-            torch.tensor([f.label_ids_md for f in features], dtype=torch.long),
+            torch.tensor([f.label_ids_block for f in features], dtype=torch.long),
             torch.tensor([f.input_freq_ids for f in features], dtype=torch.long)
         )
 
@@ -555,10 +559,29 @@ class Segmenter:
         # Convert to Tensors and build dataset
         return self.features_to_dataset(features)
 
+    def batch_to_input(self, batch):
+        inputs = {
+            "input_ids": batch[0],
+            "attention_mask": batch[1],
+            "labels": batch[3],
+            "labels_ctc": batch[4],
+            "labels_md": batch[5],
+            "freq_ids": batch[6]
+        }
+
+        if self.args.model_type != "distilbert":
+            inputs["token_type_ids"] = (
+                batch[2] if self.args.model_type in ["bert", "xlnet"] else None
+            )  # XLM and RoBERTa don"t use segment_ids
+        return inputs
+
     def predict(self, eval_dataset):
         # Note that DistributedSampler samples randomly
-        eval_sampler = SequentialSampler(eval_dataset) if self.args.local_rank == -1 else DistributedSampler(
-            eval_dataset)
+        if self.args.local_rank == -1:
+            eval_sampler = SequentialSampler(eval_dataset)
+        else:
+            eval_sampler = DistributedSampler(eval_dataset)
+
         eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size)
 
         # Eval!
@@ -572,19 +595,7 @@ class Segmenter:
             batch = tuple(t.to(self.args.device) for t in batch)
 
             with torch.no_grad():
-                inputs = {
-                    "input_ids": batch[0],
-                    "attention_mask": batch[1],
-                    "labels": batch[3],
-                    "labels_ctc": batch[4],
-                    "labels_md": batch[5],
-                    "freq_ids": batch[6]
-                }
-
-                if self.args.model_type != "distilbert":
-                    inputs["token_type_ids"] = (
-                        batch[2] if self.args.model_type in ["bert", "xlnet"] else None
-                    )  # XLM and RoBERTa don"t use segment_ids
+                inputs = self.batch_to_input(batch)
                 outputs = self.model(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
 
@@ -603,16 +614,14 @@ class Segmenter:
         eval_loss = eval_loss / nb_eval_steps
         preds = np.argmax(preds, axis=2)
 
-        label_map = {i: label for i, label in enumerate(self.labels)}
-
         out_label_list = [[] for _ in range(out_label_ids.shape[0])]
         preds_list = [[] for _ in range(out_label_ids.shape[0])]
 
         for i in range(out_label_ids.shape[0]):
             for j in range(out_label_ids.shape[1]):
                 if out_label_ids[i, j] != self.pad_token_label_id:
-                    out_label_list[i].append(label_map[out_label_ids[i][j]])
-                    preds_list[i].append(label_map[preds[i][j]])
+                    out_label_list[i].append(self.label_map[out_label_ids[i][j]])
+                    preds_list[i].append(self.label_map[preds[i][j]])
 
         results = {
             "precision": precision_score(out_label_list, preds_list),
@@ -623,16 +632,7 @@ class Segmenter:
         # logger.info("***** Eval results %s *****", prefix)
         # logger.info("***** Input Files Path %s *****", path)
         # logger.info("***** Mode %s *****", mode)
-        # for key in sorted(results.keys()):
-        #     logger.info("  %s = %s", key, str(results[key]))
         return results, preds_list
-
-    @staticmethod
-    def write_results_to_file(result):
-        output_test_results_file = "temp_results.txt"
-        with open(output_test_results_file, "w") as writer:
-            for key in sorted(result.keys()):
-                writer.write("{} = {}\n".format(key, str(result[key])))
 
 # if __name__ == "__main__":
 #     args = parse_args()

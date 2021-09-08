@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import List, TextIO
 
-from utils_seg import InputExample
+from utils import InputExample
 from utils_ctc.prediction_ctc import prediction_on_token_input, CTCModel
 from utils_ctc.config_ctc import parameters_ctc
 
@@ -87,6 +87,13 @@ def segment_from_sentence(sentence, post_id, ctc_model):
 #
 #     text_files = sorted([f for f in conll_folder.iterdir() if is_conll_file(f)])
 #     return [SegmenterInput.from_path(path, ctc_model) for path in sorted(text_files)]
+
+
+def write_results_to_file(result):
+    output_test_results_file = "temp_results.txt"
+    with open(output_test_results_file, "w") as writer:
+        for key in sorted(result.keys()):
+            writer.write("{} = {}\n".format(key, str(result[key])))
 
 
 class SegmentItem:

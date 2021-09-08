@@ -16,7 +16,6 @@
 """ Fine-tuning the library models for named entity recognition on CoNLL-2003 (Bert or Roberta). """
 
 import argparse
-import io
 import logging
 import os
 import random
@@ -41,7 +40,7 @@ from transformers import (
 )
 
 from segmenter import FREQ_EMBED_PATH
-from utils_ner import convert_examples_to_features, get_labels, read_examples_from_file
+from utils import get_labels, read_examples_from_file, convert_examples_to_features
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -95,13 +94,13 @@ def train(args, train_dataset, model, tokenizer, labels, pad_token_label_id):
         optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=t_total
     )
 
+    optimizer_path = Path(args.model_name_or_path, "optimizer.pt")
+    scheduler_path = Path(args.model_name_or_path, "scheduler.pt")
     # Check if saved optimizer or scheduler states exist
-    if os.path.isfile(os.path.join(args.model_name_or_path, "optimizer.pt")) and os.path.isfile(
-            os.path.join(args.model_name_or_path, "scheduler.pt")
-    ):
+    if optimizer_path.exists() and scheduler_path.exists():
         # Load in optimizer and scheduler states
-        optimizer.load_state_dict(torch.load(os.path.join(args.model_name_or_path, "optimizer.pt")))
-        scheduler.load_state_dict(torch.load(os.path.join(args.model_name_or_path, "scheduler.pt")))
+        optimizer.load_state_dict(torch.load(optimizer_path))
+        scheduler.load_state_dict(torch.load(scheduler_path))
 
     if args.fp16:
         try:
@@ -130,7 +129,7 @@ def train(args, train_dataset, model, tokenizer, labels, pad_token_label_id):
     steps_trained_in_current_epoch = 0
     # Check if continuing training from a checkpoint
     if os.path.exists(args.model_name_or_path):
-        # set global_step to gobal_step of last saved checkpoint from model path
+        # set global_step to global_step of last saved checkpoint from model path
         try:
             global_step = int(args.model_name_or_path.split("-")[-1].split("/")[0])
         except ValueError:
@@ -407,6 +406,8 @@ def parse_args():
 
 
 class NER:
+    SPECIAL_LABELS = ("CTC_PRED:0", "CTC_PRED:1", "pred_seg_label:O", "pred_seg_label:Name")
+
     def __init__(self):
         args = parse_args()
 
@@ -443,7 +444,7 @@ class NER:
         set_seed(args)
 
         # Prepare CONLL-2003 task
-        labels = get_labels(args.labels)
+        labels = get_labels(args.labels, *self.SPECIAL_LABELS)
         num_labels = len(labels) - 4
         # Use cross entropy ignore index as padding label id so that only real label ids contribute to the loss later
         pad_token_label_id = CrossEntropyLoss().ignore_index
@@ -506,10 +507,10 @@ class NER:
             self.labels,
             self.args.max_seq_length,
             self.tokenizer,
-            cls_token_at_end=bool(self.args.model_type in ["xlnet"]),
+            cls_token_at_end=self.args.model_type in ["xlnet"],
             # xlnet has a cls token at the end
             cls_token=self.tokenizer.cls_token,
-            cls_token_segment_id=2 if self.args.model_type in ["xlnet"] else 0,
+            cls_token_block_id=2 if self.args.model_type in ["xlnet"] else 0,
             sep_token=self.tokenizer.sep_token,
             sep_token_extra=self.args.model_type in ["roberta"],
             # roberta uses an extra separator b/w pairs of sentences,
@@ -517,7 +518,7 @@ class NER:
             pad_on_left=self.args.model_type in ["xlnet"],
             # pad on the left for xlnet
             pad_token=self.tokenizer.pad_token_id,
-            pad_token_segment_id=self.tokenizer.pad_token_type_id,
+            pad_token_block_id=self.tokenizer.pad_token_type_id,
             pad_token_label_id=self.pad_token_label_id,
         )
 
@@ -526,10 +527,10 @@ class NER:
         return TensorDataset(
             torch.tensor([f.input_ids for f in features], dtype=torch.long),
             torch.tensor([f.input_mask for f in features], dtype=torch.long),
-            torch.tensor([f.segment_ids for f in features], dtype=torch.long),
+            torch.tensor([f.block_ids for f in features], dtype=torch.long),
             torch.tensor([f.label_ids for f in features], dtype=torch.long),
             torch.tensor([f.label_ids_ctc for f in features], dtype=torch.long),
-            torch.tensor([f.label_ids_seg for f in features], dtype=torch.long)
+            torch.tensor([f.label_ids_block for f in features], dtype=torch.long)
         )
 
     def load_and_cache_examples(self, path, mode=""):
@@ -540,12 +541,8 @@ class NER:
             torch.distributed.barrier()  # Make sure only the first process in distributed training process the dataset, and the others will use the cache
 
         # Load data features from cache or dataset file
-        cached_features_file = os.path.join(
-            self.args.data_dir,
-            "cached_{}_{}_{}".format(
-                mode, list(filter(None, self.args.model_name_or_path.split("/"))).pop(), str(self.args.max_seq_length)
-            ),
-        )
+        cached_features_file = Path(
+            self.args.data_dir) / f"cached_{mode}_{Path(self.args.model_name_or_path).name}_{self.args.max_seq_length}"
 
         examples = read_examples_from_file(path, mode)
         features = self.examples_to_features(examples)
@@ -555,10 +552,27 @@ class NER:
 
         return self.features_to_dataset(features)
 
+    def batch_to_input(self, batch):
+        inputs = {
+            "input_ids": batch[0],
+            "attention_mask": batch[1],
+            "labels": batch[3],
+            "labels_ctc": batch[4],
+            "labels_seg": batch[5]
+        }
+        if self.args.model_type != "distilbert":
+            inputs["token_type_ids"] = (
+                batch[2] if self.args.model_type in ["bert", "xlnet"] else None
+            )  # XLM and RoBERTa don"t use segment_ids
+        return inputs
+
     def evaluate(self, eval_dataset):
         # Note that DistributedSampler samples randomly
-        eval_sampler = SequentialSampler(eval_dataset) if self.args.local_rank == -1 else DistributedSampler(
-            eval_dataset)
+        if self.args.local_rank == -1:
+            eval_sampler = SequentialSampler(eval_dataset)
+        else:
+            eval_sampler = DistributedSampler(eval_dataset)
+
         eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size)
 
         # Eval!
@@ -572,17 +586,7 @@ class NER:
             batch = tuple(t.to(self.args.device) for t in batch)
 
             with torch.no_grad():
-                inputs = {
-                    "input_ids": batch[0],
-                    "attention_mask": batch[1],
-                    "labels": batch[3],
-                    "labels_ctc": batch[4],
-                    "labels_seg": batch[5]
-                }
-                if self.args.model_type != "distilbert":
-                    inputs["token_type_ids"] = (
-                        batch[2] if self.args.model_type in ["bert", "xlnet"] else None
-                    )  # XLM and RoBERTa don"t use segment_ids
+                inputs = self.batch_to_input(batch)
                 outputs = self.model(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
 
@@ -618,15 +622,4 @@ class NER:
             "f1": f1_score(out_label_list, preds_list),
         }
 
-        # logger.info("***** Eval results %s *****", prefix)
-        # for key in sorted(results.keys()):
-        #     logger.info("  %s = %s", key, str(results[key]))
-
         return results, preds_list
-
-    @staticmethod
-    def write_results_to_file(result):
-        output_test_results_file = "temp_results.txt"
-        with open(output_test_results_file, "w") as writer:
-            for key in sorted(result.keys()):
-                writer.write("{} = {}\n".format(key, str(result[key])))

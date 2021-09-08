@@ -17,6 +17,9 @@
 
 import logging
 import json
+from pathlib import Path
+
+from create_freq_vector_info import read_file
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +43,14 @@ class InputExample:
 
 class InputFeatures:
     """A single set of features of data."""
-
-    def __init__(self, input_ids, input_mask, freq_ids, segment_ids, label_ids, label_ids_ctc, label_ids_seg):
+    def __init__(self, input_ids, input_mask, freq_ids, block_ids, label_ids, label_ids_ctc, label_ids_block):
         self.input_ids = input_ids
         self.input_freq_ids = freq_ids
         self.input_mask = input_mask
-        self.segment_ids = segment_ids
+        self.block_ids = block_ids
         self.label_ids = label_ids
         self.label_ids_ctc = label_ids_ctc
-        self.label_ids_seg = label_ids_seg
+        self.label_ids_block = label_ids_block
 
 
 def read_examples_from_file(file_path, mode):
@@ -85,25 +87,29 @@ def convert_examples_to_features(
         tokenizer,
         cls_token_at_end=False,
         cls_token="[CLS]",
-        cls_token_segment_id=1,
+        cls_token_block_id=1,
         sep_token="[SEP]",
         sep_token_extra=False,
         pad_on_left=False,
         pad_token=0,
-        pad_token_segment_id=0,
+        pad_token_block_id=0,
         pad_token_label_id=-100,
-        sequence_a_segment_id=0,
+        sequence_a_block_id=0,
         mask_padding_with_zero=True,
 ):
     """ Loads a data file into a list of `InputBatch`s
         `cls_token_at_end` define the location of the CLS token:
             - False (Default, BERT/XLM pattern): [CLS] + A + [SEP] + B + [SEP]
             - True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
-        `cls_token_segment_id` define the segment id associated to the CLS token (0 for BERT, 2 for XLNet)
+        `cls_token_block_id` define the block id associated to the CLS token (0 for BERT, 2 for XLNet)
     """
 
     label_map = {label: i for i, label in enumerate(label_list)}
-    word_to_id = json.load(open("word_to_id.json", "r"))
+    try:
+        word_to_id = json.load(open("word_to_id.json", "r"))
+    except FileNotFoundError:
+        read_file(Path(__file__).parent / Path("Freq_Vector.txt"))
+        word_to_id = json.load(open("word_to_id.json", "r"))
     word_id_pad = word_to_id["***PADDING***"]
 
     # print("*********************************")
@@ -118,7 +124,7 @@ def convert_examples_to_features(
         tokens = []
         label_ids = []
         label_ids_ctc = []
-        label_ids_seg = []
+        label_ids_block = []
         word_freq_ids = []
         for word, label in zip(example.words, example.labels):
             # print("*********************************")
@@ -138,7 +144,7 @@ def convert_examples_to_features(
                 # Use the real label id for the first token of the word, and padding ids for the remaining tokens
                 label_ids.extend([label_map[label[0]]] + [pad_token_label_id] * (len(word_tokens) - 1))
                 label_ids_ctc.extend([label_map[label[1]]] + [pad_token_label_id] * (len(word_tokens) - 1))
-                label_ids_seg.extend([label_map[label[2]]] + [pad_token_label_id] * (len(word_tokens) - 1))
+                label_ids_block.extend([label_map[label[2]]] + [pad_token_label_id] * (len(word_tokens) - 1))
                 word_freq_ids.append(word_id)
 
         # Account for [CLS] and [SEP] with "- 2" and with "- 3" for RoBERTa.
@@ -147,7 +153,7 @@ def convert_examples_to_features(
             tokens = tokens[: (max_seq_length - special_tokens_count)]
             label_ids = label_ids[: (max_seq_length - special_tokens_count)]
             label_ids_ctc = label_ids_ctc[: (max_seq_length - special_tokens_count)]
-            label_ids_seg = label_ids_seg[: (max_seq_length - special_tokens_count)]
+            label_ids_block = label_ids_block[: (max_seq_length - special_tokens_count)]
             word_freq_ids = word_freq_ids[: (max_seq_length - special_tokens_count)]
 
         # The convention in BERT is:
@@ -172,30 +178,30 @@ def convert_examples_to_features(
         word_freq_ids += [word_id_pad]
         label_ids += [pad_token_label_id]
         label_ids_ctc += [pad_token_label_id]
-        label_ids_seg += [pad_token_label_id]
+        label_ids_block += [pad_token_label_id]
         if sep_token_extra:
             # roberta uses an extra separator b/w pairs of sentences
             tokens += [sep_token]
             word_freq_ids += [word_id_pad]
             label_ids += [pad_token_label_id]
             label_ids_ctc += [pad_token_label_id]
-            label_ids_seg += [pad_token_label_id]
-        segment_ids = [sequence_a_segment_id] * len(tokens)
+            label_ids_block += [pad_token_label_id]
+        block_ids = [sequence_a_block_id] * len(tokens)
 
         if cls_token_at_end:
             tokens += [cls_token]
             word_freq_ids += [word_id_pad]
             label_ids += [pad_token_label_id]
             label_ids_ctc += [pad_token_label_id]
-            label_ids_seg += [pad_token_label_id]
-            segment_ids += [cls_token_segment_id]
+            label_ids_block += [pad_token_label_id]
+            block_ids += [cls_token_block_id]
         else:
             tokens = [cls_token] + tokens
             word_freq_ids = [word_id_pad] + word_freq_ids
             label_ids = [pad_token_label_id] + label_ids
             label_ids_ctc = [pad_token_label_id] + label_ids_ctc
-            label_ids_seg = [pad_token_label_id] + label_ids_seg
-            segment_ids = [cls_token_segment_id] + segment_ids
+            label_ids_block = [pad_token_label_id] + label_ids_block
+            block_ids = [cls_token_block_id] + block_ids
 
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
@@ -210,18 +216,18 @@ def convert_examples_to_features(
             input_ids = ([pad_token] * padding_length) + input_ids
             input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
             word_freq_ids = ([word_id_pad] * padding_length) + word_freq_ids
-            segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
+            block_ids = ([pad_token_block_id] * padding_length) + block_ids
             label_ids = ([pad_token_label_id] * padding_length) + label_ids
             label_ids_ctc = ([pad_token_label_id] * padding_length) + label_ids_ctc
-            label_ids_seg = ([pad_token_label_id] * padding_length) + label_ids_seg
+            label_ids_block = ([pad_token_label_id] * padding_length) + label_ids_block
         else:
             input_ids += [pad_token] * padding_length
             input_mask += [0 if mask_padding_with_zero else 1] * padding_length
             word_freq_ids += [word_id_pad] * padding_length
-            segment_ids += [pad_token_segment_id] * padding_length
+            block_ids += [pad_token_block_id] * padding_length
             label_ids += [pad_token_label_id] * padding_length
             label_ids_ctc += [pad_token_label_id] * padding_length
-            label_ids_seg += [pad_token_label_id] * padding_length
+            label_ids_block += [pad_token_label_id] * padding_length
 
         while len(word_freq_ids) != max_seq_length:
             word_freq_ids.append(word_id_pad)
@@ -231,10 +237,10 @@ def convert_examples_to_features(
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(word_freq_ids) == max_seq_length
-        assert len(segment_ids) == max_seq_length
+        assert len(block_ids) == max_seq_length
         assert len(label_ids) == max_seq_length
         assert len(label_ids_ctc) == max_seq_length
-        assert len(label_ids_seg) == max_seq_length
+        assert len(label_ids_block) == max_seq_length
 
         # if ex_index < 5:
         #     logger.info("*** Example ***")
@@ -242,28 +248,32 @@ def convert_examples_to_features(
         #     logger.info("tokens: %s", " ".join([str(x) for x in tokens]))
         #     logger.info("input_ids: %s", " ".join([str(x) for x in input_ids]))
         #     logger.info("input_mask: %s", " ".join([str(x) for x in input_mask]))
-        #     logger.info("segment_ids: %s", " ".join([str(x) for x in segment_ids]))
+        #     logger.info("block_ids: %s", " ".join([str(x) for x in block_ids]))
         #     logger.info("label_ids: %s", " ".join([str(x) for x in label_ids]))
         #     logger.info("label_ids_ctc: %s", " ".join([str(x) for x in label_ids_ctc]))
-        #     logger.info("label_ids_seg: %s", " ".join([str(x) for x in label_ids_seg]))
+        #     logger.info("label_ids_block: %s", " ".join([str(x) for x in label_ids_block]))
 
         features.append(
-            InputFeatures(input_ids=input_ids, input_mask=input_mask, freq_ids=word_freq_ids, segment_ids=segment_ids,
-                          label_ids=label_ids, label_ids_ctc=label_ids_ctc, label_ids_seg=label_ids_seg)
+            InputFeatures(
+                input_ids=input_ids,
+                input_mask=input_mask,
+                freq_ids=word_freq_ids,
+                block_ids=block_ids,
+                label_ids=label_ids,
+                label_ids_ctc=label_ids_ctc,
+                label_ids_block=label_ids_block
+            )
         )
     return features
 
 
-def get_labels(path):
+def get_labels(path, *special_labels):
     if path:
         with open(path, "r") as f:
             labels = f.read().splitlines()
         if "O" not in labels:
             labels = ["O"] + labels
-        labels.append("CTC_PRED:0")
-        labels.append("CTC_PRED:1")
-        labels.append("pred_seg_label:O")
-        labels.append("pred_seg_label:Name")
+        labels.extend(special_labels)
         return labels
     else:
         return ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"]
