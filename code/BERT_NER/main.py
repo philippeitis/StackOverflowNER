@@ -276,7 +276,7 @@ def ner_from_segments(segments, output):
     )
 
     ni = si.to_ner_input(preds)
-    results, preds = ner.evaluate(
+    results, preds = ner.predict(
         ner.examples_to_dataset(ni.to_examples())
     )
 
@@ -354,7 +354,7 @@ def ner_repl(base_args):
         )
 
         ni = si.to_ner_input(preds)
-        results, preds = ner.evaluate(
+        results, preds = ner.predict(
             ner.examples_to_dataset(ni.to_examples())
         )
 

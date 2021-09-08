@@ -19,6 +19,13 @@ import logging
 import json
 from pathlib import Path
 
+import numpy as np
+import torch
+
+from torch.utils.data import DataLoader, SequentialSampler, TensorDataset, DistributedSampler
+from seqeval.metrics import f1_score, precision_score, recall_score
+from tqdm import tqdm
+
 from create_freq_vector_info import read_file
 
 logger = logging.getLogger(__name__)
@@ -277,3 +284,123 @@ def get_labels(path, *special_labels):
         return labels
     else:
         return ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"]
+
+
+class FeatureConverter:
+    FEATURE_ATTRS = tuple()
+
+    def examples_to_dataset(self, examples):
+        return self.features_to_dataset(self.examples_to_features(examples))
+
+    def examples_to_features(self, examples):
+        return convert_examples_to_features(
+            examples,
+            self.labels,
+            self.args.max_seq_length,
+            self.tokenizer,
+            cls_token_at_end=self.args.model_type in ["xlnet"],
+            # xlnet has a cls token at the end
+            cls_token=self.tokenizer.cls_token,
+            cls_token_block_id=2 if self.args.model_type in ["xlnet"] else 0,
+            sep_token=self.tokenizer.sep_token,
+            sep_token_extra=self.args.model_type in ["roberta"],
+            # roberta uses an extra separator b/w pairs of sentences,
+            # cf. github.com/pytorch/fairseq/commit/1684e166e3da03f5b600dbb7855cb98ddfcd0805
+            pad_on_left=self.args.model_type in ["xlnet"],
+            # pad on the left for xlnet
+            pad_token=self.tokenizer.pad_token_id,
+            pad_token_block_id=self.tokenizer.pad_token_type_id,
+            pad_token_label_id=self.pad_token_label_id,
+        )
+
+    @classmethod
+    def features_to_dataset(cls, features):
+        return TensorDataset(
+            *[torch.tensor([getattr(f, attr) for f in features], dtype=torch.long) for attr in cls.FEATURE_ATTRS]
+        )
+
+    def load_and_cache_examples(self, path, mode=""):
+        if self.args.local_rank not in [-1, 0]:
+            torch.distributed.barrier()  # Make sure only the first process in distributed training process the dataset, and the others will use the cache
+
+        # Load data features from cache or dataset file
+        name = Path(self.args.model_name_or_path).stem
+        cache_file = Path(self.args.data_dir) / Path(f"cached_{mode}_{name}_{self.args.max_seq_length}")
+        print(cache_file)
+        if cache_file.exists() and not self.args.overwrite_cache:
+            # logger.info("Loading features from cached file %s", cached_features_file)
+
+            features = torch.load(cache_file)
+        else:
+            # logger.info("Creating features from dataset file at %s", args.data_dir)
+            path = path or Path(self.args.data_dir) / Path(f"{mode}.txt")
+            examples = read_examples_from_file(path, mode)
+            features = self.examples_to_features(examples)
+            # if args.local_rank in [-1, 0]:
+            #     logger.info("Saving features into cached file %s", cached_features_file)
+            #     torch.save(features, cached_features_file)
+
+        if self.args.local_rank == 0:
+            torch.distributed.barrier()  # Make sure only the first process in distributed training process the dataset, and the others will use the cache
+
+        # Convert to Tensors and build dataset
+        return self.features_to_dataset(features)
+
+    def batch_to_input(self, batch):
+        raise NotImplemented()
+
+    def predict(self, eval_dataset):
+        # Note that DistributedSampler samples randomly
+        if self.args.local_rank == -1:
+            eval_sampler = SequentialSampler(eval_dataset)
+        else:
+            eval_sampler = DistributedSampler(eval_dataset)
+
+        eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size)
+
+        # Eval!
+        # logger.info("***** Running evaluation %s *****", prefix)
+        eval_loss = 0.0
+        nb_eval_steps = 0
+        preds = None
+        out_label_ids = None
+        self.model.eval()
+        for batch in tqdm(eval_dataloader, desc="Evaluating", disable=True):
+            batch = tuple(t.to(self.args.device) for t in batch)
+
+            with torch.no_grad():
+                inputs = self.batch_to_input(batch)
+                outputs = self.model(**inputs)
+                tmp_eval_loss, logits = outputs[:2]
+
+                if self.args.n_gpu > 1:
+                    tmp_eval_loss = tmp_eval_loss.mean()  # mean() to average on multi-gpu parallel evaluating
+
+                eval_loss += tmp_eval_loss.item()
+            nb_eval_steps += 1
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+                out_label_ids = inputs["labels"].detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+                out_label_ids = np.append(out_label_ids, inputs["labels"].detach().cpu().numpy(), axis=0)
+
+        eval_loss = eval_loss / nb_eval_steps
+        preds = np.argmax(preds, axis=2)
+
+        out_label_list = [[] for _ in range(out_label_ids.shape[0])]
+        preds_list = [[] for _ in range(out_label_ids.shape[0])]
+
+        for i in range(out_label_ids.shape[0]):
+            for j in range(out_label_ids.shape[1]):
+                if out_label_ids[i, j] != self.pad_token_label_id:
+                    out_label_list[i].append(self.label_map[out_label_ids[i][j]])
+                    preds_list[i].append(self.label_map[preds[i][j]])
+
+        results = {
+            "precision": precision_score(out_label_list, preds_list),
+            "recall": recall_score(out_label_list, preds_list),
+            "f1": f1_score(out_label_list, preds_list),
+        }
+
+        return results, preds_list

@@ -24,9 +24,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from seqeval.metrics import f1_score, precision_score, recall_score
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, TensorDataset
+from torch.utils.data import DataLoader, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 
@@ -40,7 +39,7 @@ from transformers import (
 )
 
 from segmenter import FREQ_EMBED_PATH
-from utils import get_labels, read_examples_from_file, convert_examples_to_features
+from utils import get_labels, read_examples_from_file, FeatureConverter
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -405,8 +404,16 @@ def parse_args():
     return args
 
 
-class NER:
+class NER(FeatureConverter):
     SPECIAL_LABELS = ("CTC_PRED:0", "CTC_PRED:1", "pred_seg_label:O", "pred_seg_label:Name")
+    FEATURE_ATTRS = (
+        "input_ids",
+        "input_mask",
+        "block_ids",
+        "label_ids",
+        "label_ids_ctc",
+        "label_ids_block",
+    )
 
     def __init__(self):
         args = parse_args()
@@ -497,41 +504,7 @@ class NER:
         self.labels = labels
         self.pad_token_label_id = pad_token_label_id
         self.args = args
-
-    def examples_to_dataset(self, examples):
-        return self.features_to_dataset(self.examples_to_features(examples))
-
-    def examples_to_features(self, examples):
-        return convert_examples_to_features(
-            examples,
-            self.labels,
-            self.args.max_seq_length,
-            self.tokenizer,
-            cls_token_at_end=self.args.model_type in ["xlnet"],
-            # xlnet has a cls token at the end
-            cls_token=self.tokenizer.cls_token,
-            cls_token_block_id=2 if self.args.model_type in ["xlnet"] else 0,
-            sep_token=self.tokenizer.sep_token,
-            sep_token_extra=self.args.model_type in ["roberta"],
-            # roberta uses an extra separator b/w pairs of sentences,
-            # cf. github.com/pytorch/fairseq/commit/1684e166e3da03f5b600dbb7855cb98ddfcd0805
-            pad_on_left=self.args.model_type in ["xlnet"],
-            # pad on the left for xlnet
-            pad_token=self.tokenizer.pad_token_id,
-            pad_token_block_id=self.tokenizer.pad_token_type_id,
-            pad_token_label_id=self.pad_token_label_id,
-        )
-
-    @staticmethod
-    def features_to_dataset(features):
-        return TensorDataset(
-            torch.tensor([f.input_ids for f in features], dtype=torch.long),
-            torch.tensor([f.input_mask for f in features], dtype=torch.long),
-            torch.tensor([f.block_ids for f in features], dtype=torch.long),
-            torch.tensor([f.label_ids for f in features], dtype=torch.long),
-            torch.tensor([f.label_ids_ctc for f in features], dtype=torch.long),
-            torch.tensor([f.label_ids_block for f in features], dtype=torch.long)
-        )
+        self.label_map = {i: label for i, label in enumerate(self.labels)}
 
     def load_and_cache_examples(self, path, mode=""):
         if path is None:
@@ -565,61 +538,3 @@ class NER:
                 batch[2] if self.args.model_type in ["bert", "xlnet"] else None
             )  # XLM and RoBERTa don"t use segment_ids
         return inputs
-
-    def evaluate(self, eval_dataset):
-        # Note that DistributedSampler samples randomly
-        if self.args.local_rank == -1:
-            eval_sampler = SequentialSampler(eval_dataset)
-        else:
-            eval_sampler = DistributedSampler(eval_dataset)
-
-        eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=self.args.eval_batch_size)
-
-        # Eval!
-        # logger.info("***** Running evaluation %s *****", prefix)
-        eval_loss = 0.0
-        nb_eval_steps = 0
-        preds = None
-        out_label_ids = None
-        self.model.eval()
-        for batch in tqdm(eval_dataloader, desc="Evaluating", disable=True):
-            batch = tuple(t.to(self.args.device) for t in batch)
-
-            with torch.no_grad():
-                inputs = self.batch_to_input(batch)
-                outputs = self.model(**inputs)
-                tmp_eval_loss, logits = outputs[:2]
-
-                if self.args.n_gpu > 1:
-                    tmp_eval_loss = tmp_eval_loss.mean()  # mean() to average on multi-gpu parallel evaluating
-
-                eval_loss += tmp_eval_loss.item()
-            nb_eval_steps += 1
-            if preds is None:
-                preds = logits.detach().cpu().numpy()
-                out_label_ids = inputs["labels"].detach().cpu().numpy()
-            else:
-                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
-                out_label_ids = np.append(out_label_ids, inputs["labels"].detach().cpu().numpy(), axis=0)
-
-        eval_loss = eval_loss / nb_eval_steps
-        preds = np.argmax(preds, axis=2)
-
-        label_map = {i: label for i, label in enumerate(self.labels)}
-
-        out_label_list = [[] for _ in range(out_label_ids.shape[0])]
-        preds_list = [[] for _ in range(out_label_ids.shape[0])]
-
-        for i in range(out_label_ids.shape[0]):
-            for j in range(out_label_ids.shape[1]):
-                if out_label_ids[i, j] != self.pad_token_label_id:
-                    out_label_list[i].append(label_map[out_label_ids[i][j]])
-                    preds_list[i].append(label_map[preds[i][j]])
-
-        results = {
-            "precision": precision_score(out_label_list, preds_list),
-            "recall": recall_score(out_label_list, preds_list),
-            "f1": f1_score(out_label_list, preds_list),
-        }
-
-        return results, preds_list
