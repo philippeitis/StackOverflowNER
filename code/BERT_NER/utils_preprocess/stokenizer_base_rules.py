@@ -22,7 +22,6 @@ Below is the history of the development fo the  tweet tokenizer
 
 
 """
-from __future__ import unicode_literals
 
 import operator
 import re

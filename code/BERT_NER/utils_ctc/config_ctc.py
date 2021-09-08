@@ -1,14 +1,14 @@
-parameters_ctc = {}
+from pathlib import Path
 
+BASE_CTC_DIR = Path("/home/philippe/PycharmProjects/StackOverflowNER/data_ctc")
+FASTTEXT_BIN = "/home/philippe/PycharmProjects/StackOverflowNER/resources/fasttext.bin"
 
-
-
-parameters_ctc['train_file']="/data/jeniya/STACKOVERFLOW_DATA/CTC/data/train_updated.tsv"
-parameters_ctc['test_file']="/data/jeniya/STACKOVERFLOW_DATA/CTC/data/test_updated.tsv"
-
-
-parameters_ctc['LR']=0.0015
-parameters_ctc['epochs']=70
-parameters_ctc['word_dim']=300
-parameters_ctc['hidden_layer_1_dim']=300
-
+parameters_ctc = {
+    'train_file': str(BASE_CTC_DIR / Path("train.tsv")),
+    'test_file': str(BASE_CTC_DIR / Path("test.tsv")),
+    'LR': 0.0015,
+    'epochs': 70,
+    'word_dim': 300,
+    'hidden_layer_1_dim': 300,
+    "RESOURCES_base_directory": BASE_CTC_DIR,
+}

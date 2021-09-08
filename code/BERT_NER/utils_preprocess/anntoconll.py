@@ -2,64 +2,61 @@
 
 # Convert text and standoff annotations into CoNLL format.
 
-from __future__ import print_function
-
-import os
-from glob import glob
 import re
-import sys
-from collections import namedtuple
-from io import StringIO
-from os import path
 
 import sys
-from os.path import join as path_join
-from os.path import dirname
-from sys import path as sys_path
-
-
+from pathlib import Path
 
 # assume script in brat tools/ directory, extend path to find sentencesplit.py
-sys_path.append(path_join(dirname(__file__), '.'))
-
+sys.path.append(str(Path(__file__).parent))
 sys.path.append('.')
 
-
 from sentencesplit import sentencebreaks_to_newlines
-
-
-options = None
 
 EMPTY_LINE_RE = re.compile(r'^\s*$')
 CONLL_LINE_RE = re.compile(r'^\S+\t\d+\t\d+.')
 
- 
-import stokenizer #JT: Dec 6
+import stokenizer  # JT: Dec 6
+from map_text_to_char import map_text_to_char  # JT: Dec 6
 
-import ftfy #JT: Feb 20
-
-
-from map_text_to_char import map_text_to_char  #JT: Dec 6
+NO_SPLIT = True
+SINGLE_CLASS = None
+ANN_SUFFIX = ".ann"
+OUT_SUFFIX = "conll"
+VERBOSE = False
 
 
 def argparser():
     import argparse
 
-    ap = argparse.ArgumentParser(description='Convert text and standoff ' +
-                                 'annotations into CoNLL format.')
-    ap.add_argument('-a', '--annsuffix', default=".ann",
+    ap = argparse.ArgumentParser(
+        description='Convert text and standoff annotations into CoNLL format.'
+    )
+    ap.add_argument('-a', '--annsuffix', default=ANN_SUFFIX,
                     help='Standoff annotation file suffix (default "ann")')
-    ap.add_argument('-c', '--singleclass', default=None,
+    ap.add_argument('-c', '--singleclass', default=SINGLE_CLASS,
                     help='Use given single class for annotations')
-    ap.add_argument('-n', '--nosplit', default=True, action='store_true',
+    ap.add_argument('-n', '--nosplit', default=NO_SPLIT, action='store_true',
                     help='No sentence splitting')
-    ap.add_argument('-o', '--outsuffix', default="conll",
+    ap.add_argument('-o', '--outsuffix', default=OUT_SUFFIX,
                     help='Suffix to add to output files (default "conll")')
-    ap.add_argument('-v', '--verbose', default=False, action='store_true',
+    ap.add_argument('-v', '--verbose', default=VERBOSE, action='store_true',
                     help='Verbose output')
     # ap.add_argument('text', metavar='TEXT', nargs='+',
     #                 help='Text files ("-" for STDIN)')
     return ap
+
+
+def init_globals():
+    global NO_SPLIT, SINGLE_CLASS, ANN_SUFFIX, OUT_SUFFIX, VERBOSE
+
+    ap = argparser()
+    args = ap.parse_args(sys.argv[1:])
+    NO_SPLIT = args.nosplit
+    SINGLE_CLASS = args.singleclass
+    ANN_SUFFIX = args.annsuffix
+    OUT_SUFFIX = args.outsuffix
+    VERBOSE = args.verbose
 
 
 def read_sentence(f):
@@ -74,11 +71,10 @@ def read_sentence(f):
         if EMPTY_LINE_RE.match(l):
             break
         if not CONLL_LINE_RE.search(l):
-            raise FormatError(
+            raise ValueError(
                 'Line not in CoNLL format: "%s"' %
                 l.rstrip('\n'))
     return lines
-
 
 
 def strip_labels(lines):
@@ -104,7 +100,6 @@ def strip_labels(lines):
     return labels, stripped
 
 
-
 def attach_labels(labels, lines):
     """Given a list of labels and CoNLL-format lines, affix TAB-separated label
     to each non-empty line.
@@ -128,24 +123,32 @@ def attach_labels(labels, lines):
     return attached
 
 
-
-def text_to_conll(f):
+def conll_from_path(path):
     """Convert plain text into CoNLL format."""
-    global options
-
-    if options.nosplit:
-        sentences = f.readlines()
+    lines = path.read_text().splitlines()
+    if NO_SPLIT:
+        sentences = lines
     else:
         sentences = []
-        for l in f:
-            l = sentencebreaks_to_newlines(l)
-            sentences.extend([s for s in NEWLINE_TERM_REGEX.split(l) if s])
+        for line in lines:
+            line = sentencebreaks_to_newlines(line)
+            sentences.extend([s for s in NEWLINE_TERM_REGEX.split(line) if s])
 
+    if ANN_SUFFIX:
+        annotations = get_annotations(path)
+    else:
+        annotations = None
+
+    return conll_from_sentences(sentences, annotations)
+
+
+def conll_from_sentences(sentences, annotations=None):
+    """Convert plain text into CoNLL format."""
     lines = []
 
     offset = 0
     # print(sentences)
-    #JT: Feb 19: added it for resolving char encoding issues
+    # JT: Feb 19: added it for resolving char encoding issues
     fixed_sentences = []
     for s in sentences:
         # print(s)
@@ -156,57 +159,35 @@ def text_to_conll(f):
 
     # for s in sentences:
     for s in fixed_sentences:
-        nonspace_token_seen = False
-        # print(s)
-        
-        
-        
-        try:
-            tokens = stokenizer.tokenize(s)
-        except stokenizer.TimedOutExc as e:
-            try:
-                print("***********using ark tokenizer")
-                tokens = ark_twokenize.tokenizeRawTweetText(s)
-            except Exception as e:
-                    print(e)
-        # print("tokens: ", tokens)
+        tokens = stokenizer.tokenize(s)
+        # Possibly apply timeout?
+        # try:
+        #     tokens = stokenizer.tokenize(s)
+        # except stokenizer.TimedOutExc as e:
+        #     try:
+        #         print("***********using ark tokenizer")
+        #         tokens = ark_twokenize.tokenizeRawTweetText(s)
+        #     except Exception as e:
+        #         print(e)
         token_w_pos = map_text_to_char(s, tokens, offset)
-        # print("token_w_pos: ",token_w_pos)
 
-        for(t, pos) in token_w_pos:
+        for t, pos in token_w_pos:
             if not t.isspace():
-                lines.append(['O', pos, pos + len(t), t])
-        
-        lines.append([])
+                lines.append(('O', pos, pos + len(t), t))
 
-        offset+=len(s)
+        lines.append(tuple())
 
-
-        # tokens = [t for t in TOKENIZATION_REGEX.split(s) if t] # JT : Dec 6
-        # for t in tokens:
-        #     if not t.isspace():
-        #         lines.append(['O', offset, offset + len(t), t])
-        #         nonspace_token_seen = True
-        #     offset += len(t)
-
-        # # sentences delimited by empty lines
-        # if nonspace_token_seen:
-        #     lines.append([])
+        offset += len(s)
 
     # add labels (other than 'O') from standoff annotation if specified
-    if options.annsuffix:
-        lines = relabel(lines, get_annotations(f.name), f)
+    if annotations:
+        lines = relabel(lines, annotations)
 
     # lines = [[l[0], str(l[1]), str(l[2]), l[3]] if l else l for l in lines] #JT: Dec 6
-    lines = [[l[3],l[0]] if l else l for l in lines] #JT: Dec 6
-    return StringIO('\n'.join(('\t'.join(l) for l in lines)))
+    return [(line[3], line[0]) if line else line for line in lines]
 
 
-def relabel(lines, annotations, file_name):
-    # print("lines: ",lines)
-    # print("annotations", annotations)
-    global options
-
+def relabel(lines, annotations):
     # TODO: this could be done more neatly/efficiently
     offset_label = {}
 
@@ -243,63 +224,54 @@ def relabel(lines, annotations, file_name):
         lines[i] = [tag, start, end, token]
 
     # optional single-classing
-    if options.singleclass:
+    if SINGLE_CLASS:
         for l in lines:
             if l and l[0] != 'O':
-                l[0] = l[0][:2] + options.singleclass
+                l[0] = l[0][:2] + SINGLE_CLASS
 
     return lines
 
 
-
-
 def process_files(files, output_directory, phase_name=""):
-    global options
-    # print("phase_name: ",phase_name)
+    suffix = OUT_SUFFIX.replace(".", "") + "_" + phase_name.replace("/", "")
 
-    nersuite_proc = []
+    for path in files:
+        try:
+            lines = '\n'.join(
+                '\t'.join(line) for line in
+                conll_from_path(path)
+            )
 
-    
-    for fn in sorted(files):
-        # print("now_processing: ",fn)
-        with open(fn, 'rU') as f:
-            try:
-                lines = text_to_conll(f)
-            except:
-                continue
+        except Exception as e:
+            print(e)
+            continue
 
-            # TODO: better error handling
-            if lines is None:
-                print("Line is None")
-                continue
-            file_name=fn.split("/")[-1][0:-4]
-            ofn = output_directory+file_name+"_" +options.outsuffix.replace(".","")+"_"+phase_name.replace("/","")+".txt"
-            with open(ofn, 'wt') as of:
-                of.write(''.join(lines))
+        # TODO: better error handling
+        if lines is None:
+            print(f"file at {path} could not be tokenized")
+            continue
+        file_name = output_directory / Path(f"{path.stem}_{suffix}.txt")
+        file_name.write_text(lines)
 
-         
+
 TEXTBOUND_LINE_RE = re.compile(r'^T\d+\t')
-
-Textbound = namedtuple('Textbound', 'start end type text')
 
 
 def parse_textbounds(f):
     """Parse textbound annotations in input, returning a list of Textbound."""
+    from .format_markdown import Annotation
 
     textbounds = []
 
-    for l in f:
-        l = l.rstrip('\n')
-
-        if not TEXTBOUND_LINE_RE.search(l):
+    for line in f:
+        line = line.rstrip('\n')
+        if not TEXTBOUND_LINE_RE.search(line):
             continue
 
-        id_, type_offsets, text = l.split('\t')
+        id_, type_offsets, text = line.split('\t')
         type_, start, end = type_offsets.split()
         start, end = int(start), int(end)
-
-        textbounds.append(Textbound(start, end, type_, text))
-
+        textbounds.append(Annotation(None, type_, start, end, text))
     return textbounds
 
 
@@ -326,104 +298,20 @@ def eliminate_overlaps(textbounds):
     return [t for t in textbounds if t not in eliminate]
 
 
-def get_annotations(fn):
-    global options
-
-    annfn = path.splitext(fn)[0] + options.annsuffix
-
-    with open(annfn, 'rU') as f:
-        textbounds = parse_textbounds(f)
-
-    textbounds = eliminate_overlaps(textbounds)
-
-    return textbounds
-
-
-def Read_Main_Input_Folder(input_folder):
-    start_dir = input_folder
-    
-    pattern   = "*.txt"
-    file_location_list=[]
-    for dir,_,_ in os.walk(start_dir):
-        file_location_list.extend(glob(os.path.join(dir,pattern))) 
-    
-    return file_location_list
-
-
-
-def process_folder(source_folder, output_dir_ann, min_folder_number = 1, max_folder_number=10 ):
-    # for i in range(min_folder_number,max_folder_number+1):
-        # for j in range(1,6):
-            # phase_name="phase_"+str(i).zfill(2) + "_"+str(j).zfill(2)+"/"
-    input_folder=source_folder
-    print(input_folder)
-    list_of_files=Read_Main_Input_Folder(input_folder)
-    process_files(list_of_files, output_dir_ann)
+def get_annotations(path: Path):
+    path = path.with_suffix(ANN_SUFFIX)
+    textbounds = parse_textbounds(path.read_text().splitlines())
+    return eliminate_overlaps(textbounds)
 
 
 def convert_standoff_to_conll(source_directory_ann, output_directory_conll):
-    global options
-    
-
-    
-    argv = sys.argv
-
-    
-    options = argparser().parse_args(argv[1:])
-
-
-    # print(options)
-    # sorce_folder = "checked_annotation/"
-    # phase_name="phase_02_05/"
-    # input_folder=sorce_folder+phase_name
-    # list_of_files=Read_Main_Input_Folder(input_folder)
-    # output_dir_ann = "Conlll_Output_ANN/"
-    # process_files(list_of_files, output_dir_ann, phase_name)
-
-    
-
-    
-    process_folder(source_directory_ann, output_directory_conll)
-    
-
-    
-
-
-    # sorce_folder = "raw_data/"
-    # output_dir_raw = "Conlll_Output_RAW/"
-
-
-    # sorce_folder = "raw_data/"
-    # phase_name="phase_02_05/"
-    # input_folder=sorce_folder+phase_name
-    # list_of_files=Read_Main_Input_Folder(input_folder)
-    # output_dir_ann = "Conlll_Output_RAW/"
-    # process_files(list_of_files, output_dir_ann, phase_name)
-
-
-
-
-
-
+    init_globals()
+    files = [f for f in source_directory_ann.iterdir() if f.suffix == ".txt" and f.is_file()]
+    process_files(files, output_directory_conll)
 
 
 if __name__ == '__main__':
-    source_directory_ann = "../temp_files/standoff_files/"
-    output_directory_conll = "../temp_files/conll_files/"
+    own_path = Path(__file__)
+    source_directory_ann = own_path / Path("../temp_files/standoff_files/")
+    output_directory_conll = own_path / Path("../temp_files/conll_files/")
     convert_standoff_to_conll(source_directory_ann, output_directory_conll)
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

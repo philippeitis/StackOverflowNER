@@ -1,15 +1,17 @@
 import re
 
+
 # items="a|b => regex_or(items) ==> (?:a|b)
 def regex_or(*items):
     return '(?:' + '|'.join(items) + ')'
+
+
 Bound = r"(?:\W|^|$)"
 
 punctChars = r"['\"“”‘’.?!…,:;]"
 # punctSeq   = punctChars+"+"  #'anthem'. => ' anthem '.
 punctSeq = r"['\"“”‘’]+|[.?!,…]+|[:;]+"  # 'anthem'. => ' anthem ' .
 entity = r"&(?:amp|lt|gt|quot);"  # html tag entities &quot; => "
-
 
 urlStart1 = r"(?:https?://|\bwww\.)"
 commonTLDs = r"(?:com|org|edu|gov|net|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|pro|tel|travel|xxx|aspx)"
@@ -27,8 +29,7 @@ urlBody = r"(?:[^\.\s<>][^\s<>]*?)?"
 urlExtraCrapBeforeEnd = regex_or(punctChars, entity) + "+?"
 urlEnd = r"(?:\.\.+|[<>]|\s|$)"
 url = regex_or(urlStart1, urlStart2) + urlBody + "(?=(?:" + urlExtraCrapBeforeEnd + ")?" + urlEnd + ")"
-url_rule=re.compile(url)
-
+url_rule = re.compile(url)
 
 # JT: 2018-08
 # '.html.erb' => '. html . erb' :: WRONG
@@ -45,29 +46,30 @@ Path = r'(?:/?[\w\-.]+\/+)+'
 File_Path_W_File_Name = Path + "(?:" + File_Ext + ")*"
 file_rule = re.compile(File_Path_W_File_Name)
 
+
 def IS_URL(token):
-	list_test=url_rule.findall(token)
-	if len(list_test)>0:
-		return True
-	return False
+    list_test = url_rule.findall(token)
+    if len(list_test) > 0:
+        return True
+    return False
 
 
 def IS_NUMBER(token):
-	token_updated=token.replace(".","").replace("-","").replace("+","")
-	if token_updated.isdigit():
-		return True
-	return False
+    token_updated = token.replace(".", "").replace("-", "").replace("+", "")
+    if token_updated.isdigit():
+        return True
+    return False
 
 
 def IS_FILE_NAME(token):
-	list_test=file_rule.findall(token)
-	if len(list_test)>0:
-		return True
-	return False
+    list_test = file_rule.findall(token)
+    if len(list_test) > 0:
+        return True
+    return False
+
 
 if __name__ == '__main__':
-	
-	str_test= "-12.4a"
-	
-	# print(IF_URL(str_test))
-	print(IS_NUMBER(str_test))
+    str_test = "-12.4a"
+
+    # print(IF_URL(str_test))
+    print(IS_NUMBER(str_test))
