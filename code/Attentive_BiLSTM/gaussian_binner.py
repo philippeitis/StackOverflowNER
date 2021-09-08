@@ -8,7 +8,6 @@ def gaussian(diff, sig):
 
 
 class GaussianBinner:
-
     def __init__(self, bins=10, w=0.2):
         self.bin_values, self.sigmas = [], []
         self.bins = bins
@@ -17,11 +16,10 @@ class GaussianBinner:
 
     def fit(self, x, features_to_be_binned):
         for index in range(0, features_to_be_binned):
-
             dimension = x[:, index]
             bin_divisions = np.histogram(dimension, bins=self.bins)[1]
 
-            bin_means = [(bin_divisions[i] + bin_divisions[i+1]) / 2.0
+            bin_means = [(bin_divisions[i] + bin_divisions[i + 1]) / 2.0
                          for i in range(0, len(bin_divisions) - 1)]
 
             half_width = abs(bin_divisions[1] - bin_divisions[0]) / 2.0
@@ -34,11 +32,10 @@ class GaussianBinner:
     def transform(self, x, features_to_be_binned):
         expanded_features = [x[:, features_to_be_binned:]]
         for index in range(0, features_to_be_binned):
-
             bin_means = np.array(self.bin_values[index])
 
             projected_features = gaussian(np.tile(x[:, index], (self.bins + 2, 1)).T - bin_means,
-                                              self.sigmas[index])
+                                          self.sigmas[index])
 
             sum_f = np.sum(projected_features, axis=1)
             sum_f[sum_f == 0] = self.eps
@@ -50,41 +47,25 @@ class GaussianBinner:
 
 if __name__ == '__main__':
     print("test")
-    
-   
-    ip_array=np.array([0])
+
+    ip_array = np.array([0])
     # print(ip_array)
-    for x in range(1,8):
-        x=np.array([x])
-        ip_array = np.vstack((ip_array,x))
+    for x in range(1, 8):
+        x = np.array([x])
+        ip_array = np.vstack((ip_array, x))
     # print(ip_array)
-    print("ip_array: ",ip_array)
+    print("ip_array: ", ip_array)
 
     binner = GaussianBinner()
     binner.fit(ip_array, 1)
-    new_array=binner.transform(ip_array,1)
+    new_array = binner.transform(ip_array, 1)
     # print(new_array)
 
-
-    ip_array=np.array([10])
-    for x in range(1,2):
+    ip_array = np.array([10])
+    for x in range(1, 2):
         print(x)
-        x=np.array([x])
-        ip_array = np.vstack((ip_array,x))
-    print("ip_array: ",ip_array)
-    new_array=binner.transform(ip_array,1)
-    print("new_array: ",new_array[1])
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        x = np.array([x])
+        ip_array = np.vstack((ip_array, x))
+    print("ip_array: ", ip_array)
+    new_array = binner.transform(ip_array, 1)
+    print("new_array: ", new_array[1])

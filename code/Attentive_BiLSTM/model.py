@@ -102,8 +102,8 @@ class BiLSTM_CRF(nn.Module):
         self.out_channels = char_lstm_dim
         self.char_mode = char_mode
 
-        self.embed_attn = Embeeding_Attn()
-        self.word_attn = Word_Attn()
+        self.embed_attn = EmbeddingAttn()
+        self.word_attn = WordAttn()
 
 
 

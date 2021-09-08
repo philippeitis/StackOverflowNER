@@ -22,15 +22,8 @@ Below is the history of the development fo the  tweet tokenizer
 
 
 """
-from __future__ import unicode_literals
-
-import operator
 import re
 import sys
-
-import signal
-
-
 
 try:
     from html.parser import HTMLParser
@@ -42,11 +35,8 @@ try:
 except ImportError:
     pass
 
-#timeout function is adapted from here: https://dreamix.eu/blog/webothers/timeout-function-in-python-3
 
-
-
-#items="a|b => regex_or(items) ==> (?:a|b)
+# items="a|b => regex_or(items) ==> (?:a|b)
 def regex_or(*items):
     return '(?:' + '|'.join(items) + ')'
 
@@ -55,9 +45,9 @@ Contractions = re.compile(u"(?i)(\w+)(n['’′]t|['’′]ve|['’′]ll|['’�
 Whitespace = re.compile(u"[\s\u0020\u00a0\u1680\u180e\u202f\u205f\u3000\u2000-\u200a]+", re.UNICODE)
 
 punctChars = r"['\"“”‘’.?!…,:;]"
-#punctSeq   = punctChars+"+"  #'anthem'. => ' anthem '.
-punctSeq   = r"['\"“”‘’]+|[.?!,…]+|[:;]+" #'anthem'. => ' anthem ' .
-entity     = r"&(?:amp|lt|gt|quot);" #html tag entities &quot; => "
+# punctSeq   = punctChars+"+"  #'anthem'. => ' anthem '.
+punctSeq = r"['\"“”‘’]+|[.?!,…]+|[:;]+"  # 'anthem'. => ' anthem ' .
+entity = r"&(?:amp|lt|gt|quot);"  # html tag entities &quot; => "
 #  URLs
 
 
@@ -65,57 +55,57 @@ entity     = r"&(?:amp|lt|gt|quot);" #html tag entities &quot; => "
 # If you actually empirically test it the results are bad.
 # Please see https://github.com/brendano/ark-tweet-nlp/pull/9
 
-urlStart1  = r"(?:https?://|\bwww\.)"
+urlStart1 = r"(?:https?://|\bwww\.)"
 commonTLDs = r"(?:com|org|edu|gov|net|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|pro|tel|travel|xxx|aspx)"
-ccTLDs   = r"(?:ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|" + \
-r"bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|" + \
-r"er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|" + \
-r"hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|" + \
-r"lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|" + \
-r"nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|" + \
-r"sl|sm|sn|so|sr|ss|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|" + \
-r"va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|za|zm|zw)" #TODO: remove obscure country domains?
-urlStart2  = r"\b(?:[A-Za-z\d-])+(?:\.[A-Za-z0-9]+){0,3}\." + regex_or(commonTLDs, ccTLDs) + r"(?:\."+ccTLDs+r")?(?=\W|$)"
-urlBody    = r"(?:[^\.\s<>][^\s<>]*?)?"
+ccTLDs = r"(?:ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|" + \
+         r"bv|bw|by|bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|" + \
+         r"er|es|et|eu|fi|fj|fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|" + \
+         r"hu|id|ie|il|im|in|io|iq|ir|is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|" + \
+         r"lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|" + \
+         r"nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|sk|" + \
+         r"sl|sm|sn|so|sr|ss|st|su|sv|sy|sz|tc|td|tf|tg|th|tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|" + \
+         r"va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|za|zm|zw)"  # TODO: remove obscure country domains?
+urlStart2 = r"\b(?:[A-Za-z\d-])+(?:\.[A-Za-z0-9]+){0,3}\." + regex_or(commonTLDs,
+                                                                      ccTLDs) + r"(?:\." + ccTLDs + r")?(?=\W|$)"
+urlBody = r"(?:[^\.\s<>][^\s<>]*?)?"
 urlExtraCrapBeforeEnd = regex_or(punctChars, entity) + "+?"
-urlEnd     = r"(?:\.\.+|[<>]|\s|$)"
-url        = regex_or(urlStart1, urlStart2) + urlBody + "(?=(?:"+urlExtraCrapBeforeEnd+")?"+urlEnd+")"
-
+urlEnd = r"(?:\.\.+|[<>]|\s|$)"
+url = regex_or(urlStart1, urlStart2) + urlBody + "(?=(?:" + urlExtraCrapBeforeEnd + ")?" + urlEnd + ")"
 
 # Numeric
-timeLike   = r"\d+(?::\d+){1,2}"
-#numNum     = r"\d+\.\d+"
+timeLike = r"\d+(?::\d+){1,2}"
+# numNum     = r"\d+\.\d+"
 numberWithCommas = r"(?:(?<!\d)\d{1,3},)+?\d{3}" + r"(?=(?:[^,\d]|$))"
-numComb  = u"[\u0024\u058f\u060b\u09f2\u09f3\u09fb\u0af1\u0bf9\u0e3f\u17db\ua838\ufdfc\ufe69\uff04\uffe0\uffe1\uffe5\uffe6\u00a2-\u00a5\u20a0-\u20b9]?\\d+(?:\\.\\d+)+%?"
+numComb = u"[\u0024\u058f\u060b\u09f2\u09f3\u09fb\u0af1\u0bf9\u0e3f\u17db\ua838\ufdfc\ufe69\uff04\uffe0\uffe1\uffe5\uffe6\u00a2-\u00a5\u20a0-\u20b9]?\\d+(?:\\.\\d+)+%?"
 
 # Abbreviations
 boundaryNotDot = regex_or("$", r"\s", r"[“\"?!,:;]", entity)
-aa1  = r"(?:[A-Za-z]\.){2,}(?=" + boundaryNotDot + ")"
-aa2  = r"[^A-Za-z](?:[A-Za-z]\.){1,}[A-Za-z](?=" + boundaryNotDot + ")"
+aa1 = r"(?:[A-Za-z]\.){2,}(?=" + boundaryNotDot + ")"
+aa2 = r"[^A-Za-z](?:[A-Za-z]\.){1,}[A-Za-z](?=" + boundaryNotDot + ")"
 standardAbbreviations = r"\b(?:[Mm]r|[Mm]rs|[Mm]s|[Dd]r|[Ss]r|[Jj]r|[Rr]ep|[Ss]en|[Ss]t)\."
 arbitraryAbbrev = regex_or(aa1, aa2, standardAbbreviations)
-separators  = "(?:--+|―|—|~|–|=)"
+separators = "(?:--+|―|—|~|–|=)"
 decorations = u"(?:[♫♪]+|[★☆]+|[♥❤♡]+|[\u2639-\u263b]+|[\ue001-\uebbb]+)"
 thingsThatSplitWords = r"[^\s\.,?\"]"
-embeddedApostrophe = thingsThatSplitWords+r"+['’′]" + thingsThatSplitWords + "*"
+embeddedApostrophe = thingsThatSplitWords + r"+['’′]" + thingsThatSplitWords + "*"
 
 #  Emoticons
 # myleott: in Python the (?iu) flags affect the whole expression
-#normalEyes = "(?iu)[:=]" # 8 and x are eyes but cause problems
-normalEyes = "[:=]" # 8 and x are eyes but cause problems
+# normalEyes = "(?iu)[:=]" # 8 and x are eyes but cause problems
+normalEyes = "[:=]"  # 8 and x are eyes but cause problems
 wink = "[;]"
-noseArea = "(?:|-|[^a-zA-Z0-9 ])" # doesn't get :'-(
+noseArea = "(?:|-|[^a-zA-Z0-9 ])"  # doesn't get :'-(
 happyMouths = r"[D\)\]\}]+"
 sadMouths = r"[\(\[\{]+"
 tongue = "[pPd3]+"
-otherMouths = r"(?:[oO]+|[/\\]+|[vV]+|[Ss]+|[|]+)" # remove forward slash if http://'s aren't cleaned
+otherMouths = r"(?:[oO]+|[/\\]+|[vV]+|[Ss]+|[|]+)"  # remove forward slash if http://'s aren't cleaned
 
 # mouth repetition examples:
 # @aliciakeys Put it in a love song :-))
 # @hellocalyclops =))=))=)) Oh well
 
 # myleott: try to be as case insensitive as possible, but still not perfect, e.g., o.O fails
-#bfLeft = u"(♥|0|o|°|v|\\$|t|x|;|\u0ca0|@|ʘ|•|・|◕|\\^|¬|\\*)".encode('utf-8')
+# bfLeft = u"(♥|0|o|°|v|\\$|t|x|;|\u0ca0|@|ʘ|•|・|◕|\\^|¬|\\*)".encode('utf-8')
 bfLeft = u"(♥|0|[oO]|°|[vV]|\\$|[tT]|[xX]|;|\u0ca0|@|ʘ|•|・|◕|\\^|¬|\\*)"
 bfCenter = r"(?:[\.]|[_-]+)"
 bfRight = r"\2"
@@ -123,39 +113,40 @@ s3 = r"(?:--['\"])"
 s4 = r"(?:<|&lt;|>|&gt;)[\._-]+(?:<|&lt;|>|&gt;)"
 s5 = "(?:[.][_]+[.])"
 # myleott: in Python the (?i) flag affects the whole expression
-#basicface = "(?:(?i)" +bfLeft+bfCenter+bfRight+ ")|" +s3+ "|" +s4+ "|" + s5
-basicface = "(?:" +bfLeft+bfCenter+bfRight+ ")|" +s3+ "|" +s4+ "|" + s5
+# basicface = "(?:(?i)" +bfLeft+bfCenter+bfRight+ ")|" +s3+ "|" +s4+ "|" + s5
+basicface = "(?:" + bfLeft + bfCenter + bfRight + ")|" + s3 + "|" + s4 + "|" + s5
 
 eeLeft = r"[＼\\ƪԄ\(（<>;ヽ\-=~\*]+"
-eeRight= u"[\\-=\\);'\u0022<>ʃ）/／ノﾉ丿╯σっµ~\\*]+"
+eeRight = u"[\\-=\\);'\u0022<>ʃ）/／ノﾉ丿╯σっµ~\\*]+"
 eeSymbol = r"[^A-Za-z0-9\s\(\)\*:=-]"
-eastEmote = eeLeft + "(?:"+basicface+"|" +eeSymbol+")+" + eeRight
+eastEmote = eeLeft + "(?:" + basicface + "|" + eeSymbol + ")+" + eeRight
 
 oOEmote = r"(?:[oO]" + bfCenter + r"[oO])"
 
-
 emoticon = regex_or(
-        # Standard version  :) :( :] :D :P
-        "(?:>|&gt;)?" + regex_or(normalEyes, wink) + regex_or(noseArea,"[Oo]") + regex_or(tongue+r"(?=\W|$|RT|rt|Rt)", otherMouths+r"(?=\W|$|RT|rt|Rt)", sadMouths, happyMouths),
+    # Standard version  :) :( :] :D :P
+    "(?:>|&gt;)?" + regex_or(normalEyes, wink) + regex_or(noseArea, "[Oo]") + regex_or(tongue + r"(?=\W|$|RT|rt|Rt)",
+                                                                                       otherMouths + r"(?=\W|$|RT|rt|Rt)",
+                                                                                       sadMouths, happyMouths),
 
-        # reversed version (: D:  use positive lookbehind to remove "(word):"
-        # because eyes on the right side is more ambiguous with the standard usage of : ;
-        regex_or("(?<=(?: ))", "(?<=(?:^))") + regex_or(sadMouths,happyMouths,otherMouths) + noseArea + regex_or(normalEyes, wink) + "(?:<|&lt;)?",
+    # reversed version (: D:  use positive lookbehind to remove "(word):"
+    # because eyes on the right side is more ambiguous with the standard usage of : ;
+    regex_or("(?<=(?: ))", "(?<=(?:^))") + regex_or(sadMouths, happyMouths, otherMouths) + noseArea + regex_or(
+        normalEyes, wink) + "(?:<|&lt;)?",
 
-        #inspired by http://en.wikipedia.org/wiki/User:Scapler/emoticons#East_Asian_style
-        eastEmote.replace("2", "1", 1), basicface,
-        # iOS 'emoji' characters (some smileys, some symbols) [\ue001-\uebbb]
-        # TODO should try a big precompiled lexicon from Wikipedia, Dan Ramage told me (BTO) he does this
+    # inspired by http://en.wikipedia.org/wiki/User:Scapler/emoticons#East_Asian_style
+    eastEmote.replace("2", "1", 1), basicface,
+    # iOS 'emoji' characters (some smileys, some symbols) [\ue001-\uebbb]
+    # TODO should try a big precompiled lexicon from Wikipedia, Dan Ramage told me (BTO) he does this
 
-        # myleott: o.O and O.o are two of the biggest sources of differences
-        #          between this and the Java version. One little hack won't hurt...
-        oOEmote
+    # myleott: o.O and O.o are two of the biggest sources of differences
+    #          between this and the Java version. One little hack won't hurt...
+    oOEmote
 )
 
-Hearts = "(?:<+/?3+)+" #the other hearts are in decorations
+Hearts = "(?:<+/?3+)+"  # the other hearts are in decorations
 
 Arrows = regex_or(r"(?:<*[-―—=]*>+|<+[-―—=]*>*)", u"[\u2190-\u21ff]+")
-
 
 # BTO 2011-06: restored Hashtag, AtMention protection (dropped in original scala port) because it fixes
 # "hello (#hashtag)" ==> "hello (#hashtag )"  WRONG
@@ -167,15 +158,15 @@ Arrows = regex_or(r"(?:<*[-―—=]*>+|<+[-―—=]*>*)", u"[\u2190-\u21ff]+")
 
 # This also gets #1 #40 which probably aren't hashtags .. but good as tokens.
 # If you want good hashtag identification, use a different regex.
-Hashtag = "#[a-zA-Z0-9_]+"  #optional: lookbehind for \b
-#optional: lookbehind for \b, max length 15
+Hashtag = "#[a-zA-Z0-9_]+"  # optional: lookbehind for \b
+# optional: lookbehind for \b, max length 15
 AtMention = "[@＠][a-zA-Z0-9_]+"
 
 # I was worried this would conflict with at-mentions
 # but seems ok in sample of 5800: 7 changes all email fixes
 # http://www.regular-expressions.info/email.html
 Bound = r"(?:\W|^|$)"
-Email = regex_or("(?<=(?:\W))", "(?<=(?:^))") + r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}(?=" +Bound+")"
+Email = regex_or("(?<=(?:\W))", "(?<=(?:^))") + r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}(?=" + Bound + ")"
 
 # JT's additions to rules are as the following: 
 # File_Ext, Path, OR_Words, File_Path_W_File_Name, Windows Path, Class_Name, Func_Name, Func_Name_Recursive, Class_Func_Name, HTML_Tag, Comparison Operation, Numbered_List, SPECIAL_WORDS
@@ -183,59 +174,57 @@ Email = regex_or("(?<=(?:\W))", "(?<=(?:^))") + r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-
 # JT: 2018-08
 # '.html.erb' => '. html . erb' :: WRONG
 # '.html.erb' => '.html.erb' :: WRONG
-File_Ext = r"[.]?[\w.\-]*\.[\w]+(?=" +Bound+")"
+File_Ext = r"[.]?[\w.\-]*\.[\w]+(?=" + Bound + ")"
 
 # JT: 2018-08
-Path=r'(?:/?[\w\-.]+\/+)+'
-#Path=r'(?:/?[\w\-.]+\/+[\w\-.]*)+'
+Path = r'(?:/?[\w\-.]+\/+)+'
+# Path=r'(?:/?[\w\-.]+\/+[\w\-.]*)+'
 
 # JT: 2018-08
 # '/templates/your_template/.php.ini' => '/templates/your_template/ . php . ini' :: WRONG
 # '/templates/your_template/.php.ini' => '/templates/your_template/.php.ini' :: RIGHT
-File_Path_W_File_Name=Path +"(?:" + File_Ext + ")*"
-
+File_Path_W_File_Name = Path + "(?:" + File_Ext + ")*"
 
 # JT: 2018-08
 # 'GNU/LINUX' => 'GNU / LINUX' :: WRONG
 # 'GNU/LINUX' => 'GNU/LINUX' :: RIGHT
-OR_Words=r'([\w\-.:]*\/[\w\.:]*)+'+"(?=" +Bound+")"
-
+OR_Words = r'([\w\-.:]*\/[\w\.:]*)+' + "(?=" + Bound + ")"
 
 # JT: 2018-08
 # 'd:\\ProgramFiles\x07dtbundle' => 'd : \\ProgramFiles\x07dtbundle' :: WRONG
 # 'd:\\ProgramFiles\x07dtbundle' => 'd:\\ProgramFiles\x07dtbundle' :: RIGHT
-Windows_Path=r'((?:(?:[a-zA-Z]:)?\\)[\\\S|*\S]?\S*)'+"(?=" +Bound+")"
-
+Windows_Path = r'((?:(?:[a-zA-Z]:)?\\)[\\\S|*\S]?\S*)' + "(?=" + Bound + ")"
 
 # JT: 2018-08
 # 'javax.swing.Timer' => 'javax . swing . Timer' :: WRONG
 # 'javax.swing.Timer' => 'javax.swing.Timer' :: RIGHT
-Class_Name  =r"[\w.:\-\>]*[\.:\-\>][\w\*]*(?=" +Bound+")"
+Class_Name = r"[\w.:\-\>]*[\.:\-\>][\w\*]*(?=" + Bound + ")"
 
 # JT: 2018-08
-Func_Name =  r"([\w@\-]+\((?:[\w@\-]+(?:,\s*)?)*\))"+"(?=" +Bound+")" #-----this will not allow space and quote in function argument
+Func_Name = r"([\w@\-]+\((?:[\w@\-]+(?:,\s*)?)*\))" + "(?=" + Bound + ")"  # -----this will not allow space and quote in function argument
 # Func_Name = r"([\w@\-]+\((?:[\$\w@\-\'\"\s?]+(?:,\s*)?)*\))"+"(?=" +Bound+")"
 
 # JT: 2018-08
-#Func_Name_Recursive = r"([\w@\-.\(\)]+\((?:[\$\w@\-\'\"\s?]+(?:,\s*)?)*\))"+"(?=" +Bound+")"
+# Func_Name_Recursive = r"([\w@\-.\(\)]+\((?:[\$\w@\-\'\"\s?]+(?:,\s*)?)*\))"+"(?=" +Bound+")"
 # Func_Name_Recursive = r"([$\w@\-.\(\)]+\((?:[\$\w@\-\'\"\s?]+(?:,\s*)?)*\)(?:[.][\w@\-]*)*)"+"(?=" +Bound+")" #last part is included for words like $http.get().success
-#Func_Name_Recursive = r"([\w@\-.\(\)]+\((?:[\$\w@\-\'\"\s?]+(?:,\s*)?)*\)(?:[.][\w@\-]*)*)"+"(?=" +Bound+")"
+# Func_Name_Recursive = r"([\w@\-.\(\)]+\((?:[\$\w@\-\'\"\s?]+(?:,\s*)?)*\)(?:[.][\w@\-]*)*)"+"(?=" +Bound+")"
 
 # JT: 2018-08
 # 'txScope.Complete()' => 'txScope.Complete(arg1, arg2)' :: RIGHT
 # 'txScope.Complete()' => 'txScope . Complete(arg1 , arg2 )' :: WRONG
-Class_Func_Name = r"([\w.:\-\>]*[\.:\-\>][\w]*\((?:[\w@\-]+[\.:\-\>\s=]*[\w]*(?:,\s*)?)*\))"+"(?=" +Bound+")" #-----this will not allow space and quote in function argument
+Class_Func_Name = r"([\w.:\-\>]*[\.:\-\>][\w]*\((?:[\w@\-]+[\.:\-\>\s=]*[\w]*(?:,\s*)?)*\))" + "(?=" + Bound + ")"  # -----this will not allow space and quote in function argument
 # Class_Func_Name = r"([\$\w.:\-\>]*[\.:\-\>][\w\$]*\((?:[\$\w@\-\"\'\s]+[\.:\-\>\s=]*[\$\w]*(?:,\s*)?)*\))"+"(?=" +Bound+")" 
 
 # JT: 2018-08
 # '<%=@consumer.name%>' => '<%= @consumer . name% >' :: WRONG
 # '<%=@consumer.name%>' => '<%=@consumer.name%>' :: RIGHT
-HTML_Tag=r"<.*>"+"(?=" +Bound+")"
+HTML_Tag = r"<.*>" + "(?=" + Bound + ")"
 
 # JT: 2018-08
 # '==' => "= =" :: WRONG
 # '==' => "==" :: RIGHT
-Comparison_Operators=r"==|!=|<=|>=|:="
+Comparison_Operators = r"==|!=|<=|>=|:="
+
 
 # JT: 2018-09
 # adding the rule to stop mask word splitting
@@ -244,7 +233,7 @@ Comparison_Operators=r"==|!=|<=|>=|:="
 # num2roman(num) and  generate_number_list(limit) are the function for genrating the numbered list in roman and english numerics, followed by )
 def num2roman(num):
     num_map = [(1000, 'M'), (900, 'CM'), (500, 'D'), (400, 'CD'), (100, 'C'), (90, 'XC'),
-           (50, 'L'), (40, 'XL'), (10, 'X'), (9, 'IX'), (5, 'V'), (4, 'IV'), (1, 'I')]
+               (50, 'L'), (40, 'XL'), (10, 'X'), (9, 'IX'), (5, 'V'), (4, 'IV'), (1, 'I')]
 
     roman = ''
 
@@ -256,81 +245,77 @@ def num2roman(num):
 
     return roman
 
+
 # JT: 2018-08
 def generate_number_list(limit):
-    numbered_lists_joined_string=r""
-    for i in range(1,limit+1):
+    numbered_lists_joined_string = r""
+    for i in range(1, limit + 1):
         roman_upper_case = num2roman(i)
         roman_lower_case = roman_upper_case.lower()
-        numeric_str= str(i)
-        current_string=roman_upper_case+"\)|"+roman_lower_case+"\)|"+numeric_str+"\)|"
-        if i==limit:
-            current_string=current_string[:-1]
-        
-        numbered_lists_joined_string+=current_string
+        numeric_str = str(i)
+        current_string = roman_upper_case + "\)|" + roman_lower_case + "\)|" + numeric_str + "\)|"
+        if i == limit:
+            current_string = current_string[:-1]
+
+        numbered_lists_joined_string += current_string
     return numbered_lists_joined_string
-
-
 
 
 # Numbered_List for genrating the numbered list in roman and english numerics, followed by )  and we protect these number from splitting
 # "ii)" => "ii ) " :: WRONG
 # "ii)" => "ii) " :: RIGHT
 
-#set upto which number we want to generate the numebered list, for now we set this value to 5, we can increase it later
-Upper_Limit_For_Numbered_List=5
-Numbered_List="(?=" +Bound+")"+generate_number_list(Upper_Limit_For_Numbered_List)+"(?=" +Bound+")" 
-
+# set upto which number we want to generate the numebered list, for now we set this value to 5, we can increase it later
+Upper_Limit_For_Numbered_List = 5
+Numbered_List = "(?=" + Bound + ")" + generate_number_list(Upper_Limit_For_Numbered_List) + "(?=" + Bound + ")"
 
 # JT: 2018-08
 # Additionally, these words are "protected", meaning they shouldn't be further split themselves.
-SPECIAL_WORDS=r"^http:|^HTTP:|^vs.|^c#.net|^C#.net|^'ve|^'s|^'re"+"(?=" +Bound+")"
-
+SPECIAL_WORDS = r"^http:|^HTTP:|^vs.|^c#.net|^C#.net|^'ve|^'s|^'re" + "(?=" + Bound + ")"
 
 # JT: 2018-09
 # Protect masked words
 
 
-Mask_Rule=r"x{80,80}[0-9]{1,2}"
+Mask_Rule = r"x{80,80}[0-9]{1,2}"
 # We will be tokenizing using these regexps as delimiters
 # Additionally, these things are "protected", meaning they shouldn't be further split themselves.
-Protected  = re.compile(
+Protected = re.compile(
     regex_or(
         arbitraryAbbrev,
-        Mask_Rule, #JT
+        Mask_Rule,  # JT
         # Func_Name_Recursive, #JT
         Hearts,
         url,
         Email,
-        SPECIAL_WORDS, #JT
-        OR_Words, #JT
-        Numbered_List, #JT
-        Windows_Path, #JT
-        Class_Func_Name, #JT
+        SPECIAL_WORDS,  # JT
+        OR_Words,  # JT
+        Numbered_List,  # JT
+        Windows_Path,  # JT
+        Class_Func_Name,  # JT
         emoticon,
-        Func_Name, #JT
-        Comparison_Operators, #JT
-        Class_Name, #JT
-        File_Path_W_File_Name, #JT
-        #OR_Words, #JT
-        File_Ext, #JT
+        Func_Name,  # JT
+        Comparison_Operators,  # JT
+        Class_Name,  # JT
+        File_Path_W_File_Name,  # JT
+        # OR_Words, #JT
+        File_Ext,  # JT
         Hashtag,
-        #HTML_Tag, #JT
-        Path, #JT
+        # HTML_Tag, #JT
+        Path,  # JT
         timeLike,
-        #numNum,
+        # numNum,
         numberWithCommas,
         numComb,
         emoticon,
         Arrows,
         entity,
         punctSeq,
-        
+
         separators,
         decorations,
         embeddedApostrophe,
         AtMention), re.UNICODE)
-
 
 # Edge punctuation
 # Want: 'foo' => ' foo '
@@ -341,16 +326,17 @@ Protected  = re.compile(
 # I remember it causing lots of trouble in the past as well.  Would be good to revisit or eliminate.
 
 # Note the 'smart quotes' (http://en.wikipedia.org/wiki/Smart_quotes)
-#edgePunctChars    = r"'\"“”‘’«»{}\(\)\[\]\*&" #add \\p{So}? (symbols)
-edgePunctChars    = u"'\"“”‘’«»{}\\(\\)\\[\\]\\*&" #add \\p{So}? (symbols)
-edgePunct    = "[" + edgePunctChars + "]"
-notEdgePunct = "[a-zA-Z0-9]" # content characters
+# edgePunctChars    = r"'\"“”‘’«»{}\(\)\[\]\*&" #add \\p{So}? (symbols)
+edgePunctChars = u"'\"“”‘’«»{}\\(\\)\\[\\]\\*&"  # add \\p{So}? (symbols)
+edgePunct = "[" + edgePunctChars + "]"
+notEdgePunct = "[a-zA-Z0-9]"  # content characters
 offEdge = r"(^|$|:|;|\s|\.|,)"  # colon here gets "(hello):" ==> "( hello ):"
-EdgePunctLeft  = re.compile(offEdge + "("+edgePunct+"+)("+notEdgePunct+")", re.UNICODE)
-EdgePunctRight = re.compile("("+notEdgePunct+")("+edgePunct+"+)" + offEdge, re.UNICODE)
+EdgePunctLeft = re.compile(offEdge + "(" + edgePunct + "+)(" + notEdgePunct + ")", re.UNICODE)
+EdgePunctRight = re.compile("(" + notEdgePunct + ")(" + edgePunct + "+)" + offEdge, re.UNICODE)
 
-#JT: splitEdgePunct_software is adapted from splitEdgePunct function of tweet tokenizer 
-#JT: we  donot have to add Func Rule here as Func Rule are not spiltted by edgePucnLeft & edgePucnRight
+
+# JT: splitEdgePunct_software is adapted from splitEdgePunct function of tweet tokenizer
+# JT: we  donot have to add Func Rule here as Func Rule are not spiltted by edgePucnLeft & edgePucnRight
 def splitEdgePunct_software(input):
     # ##print("splitEdgePunct_software input: ",input)
     # #first find the word identified by Func_Name_Recursive
@@ -359,18 +345,16 @@ def splitEdgePunct_software(input):
 
     # ##print("Func_Name_Recursive_Words: ", Func_Name_Recursive_Words)
 
-
     # #remove white space from the words identified by Func_Name_Recursive_Rule & save them to Func_Name_Recursive_Words_modified
     # Func_Name_Recursive_Words_modified=[]
     # Func_Name_Recursive_Words_white_space_removed=[]
-    
 
     # for w in Func_Name_Recursive_Words:
     #     #print(w)
     #     w_ = re.sub(r"[\s]", '', w)
     #     Func_Name_Recursive_Words_white_space_removed.append((w,w_))
     #     Func_Name_Recursive_Words_modified.append(w_)
-    
+
     # #remove white space from the main input for those words which are identified by Func_Name_Recursive_Func_Rule
     # for w in Func_Name_Recursive_Words_white_space_removed:
     #     main_string = w[0]
@@ -378,57 +362,48 @@ def splitEdgePunct_software(input):
     #     input=input.replace(main_string,space_removed_string)
 
     ##print("input: after removing spaces Func_Name_Recursive_Words_white_space_removed: ",input)
-    #first find the word identified by Class_Func_Rule
-    Class_Func_Rule=re.compile(Class_Func_Name)
+    # first find the word identified by Class_Func_Rule
+    Class_Func_Rule = re.compile(Class_Func_Name)
     Class_Func_Words = Class_Func_Rule.findall(input)
 
-
-    #remove white space from the words identified by Class_Func_Rule & save them to Class_Func_Words_modified
-    Class_Func_Words_modified=[]
-    Class_Func_Words_white_space_removed=[]
-    
+    # remove white space from the words identified by Class_Func_Rule & save them to Class_Func_Words_modified
+    Class_Func_Words_modified = []
+    Class_Func_Words_white_space_removed = []
 
     for w in Class_Func_Words:
-        #print("Class_Func_Words: ",w)
+        # print("Class_Func_Words: ",w)
         w_ = re.sub(r"[\s]", '', w)
-        #w_ = White_Space_Remove_From_Word(w)
-        #print("Class_Func_Words_white_space_removed: ",w_)
-        Class_Func_Words_white_space_removed.append((w,w_))
+        # w_ = White_Space_Remove_From_Word(w)
+        # print("Class_Func_Words_white_space_removed: ",w_)
+        Class_Func_Words_white_space_removed.append((w, w_))
         Class_Func_Words_modified.append(w_)
-    
-    #remove white space from the main input for those words which are identified by Class_Func_Rule
+
+    # remove white space from the main input for those words which are identified by Class_Func_Rule
     for w in Class_Func_Words_white_space_removed:
         main_string = w[0]
         space_removed_string = w[1]
-        input=input.replace(main_string,space_removed_string)
+        input = input.replace(main_string, space_removed_string)
 
+    Func_Name_Rule = re.compile(Func_Name)
+    Func_Name_Words = Func_Name_Rule.findall(input)
 
-    Func_Name_Rule=re.compile(Func_Name)
-    Func_Name_Words= Func_Name_Rule.findall(input)
+    Func_Name_Words_modified = []
+    Func_Name_Words_white_space_removed = []
 
-    Func_Name_Words_modified=[]
-    Func_Name_Words_white_space_removed=[]
+    # now split sentence by white space
+    split_input = input.split()
 
-    
-
-    #now split sentence by white space
-    split_input=input.split()
-    
-
-    
     ##print("Func_Name_Recursive_Words_modified: ",Func_Name_Recursive_Words_modified )
     ##print("split input: ",split_input)
 
-   
-    
-    #apply EdgePunct rules on each word
-    special_words=["vs.","http:"]
-    output_tokens=[]
+    # apply EdgePunct rules on each word
+    special_words = ["vs.", "http:"]
+    output_tokens = []
     for word_main in split_input:
         if word_main.lower() in special_words:
-            split_words=[word_main]
+            split_words = [word_main]
         else:
-            split_words=Split_End_of_Sentence_Punc([word_main])
+            split_words = Split_End_of_Sentence_Punc([word_main])
 
         for word in split_words:
             # if word in Func_Name_Recursive_Words_modified:
@@ -437,34 +412,31 @@ def splitEdgePunct_software(input):
             if word in Class_Func_Words_modified:
                 output_tokens.append(word)
             else:
-              word = EdgePunctLeft.sub(r"\1\2 \3", word)  
-              word = EdgePunctRight.sub(r"\1\2 \3", word) 
-              output_tokens.append(word)
+                word = EdgePunctLeft.sub(r"\1\2 \3", word)
+                word = EdgePunctRight.sub(r"\1\2 \3", word)
+                output_tokens.append(word)
 
-
-    #join the extracted words
+    # join the extracted words
     # 
-    modified_input=" ".join(output_tokens)
+    modified_input = " ".join(output_tokens)
     ##print("modified_input: ",modified_input)
     ##print("\n\n")
 
-    
-    #---------------------------------------------------------------------------------------------------------------------------
-    #---------------------------------------------------------------------------------------------------------------------------
-    #---------------------------------------------------------------------------------------------------------------------------
-    #-----------------sept 19: to add the space back to function names uncoment the following 2 loops---------------------------"
-    #---------------------------------------------------------------------------------------------------------------------------
-    #---------------------------------------------------------------------------------------------------------------------------
-    #---------------------------------------------------------------------------------------------------------------------------
-    
-    #add the white space in the function back to revert to original input
+    # ---------------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------------
+    # -----------------sept 19: to add the space back to function names uncoment the following 2 loops---------------------------"
+    # ---------------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------------------------
+
+    # add the white space in the function back to revert to original input
     # for w in Func_Name_Recursive_Words_white_space_removed:
     #     main_string = w[0]
     #     main_string_replace_space_w_bar=re.sub(r"[\s]", '-----', main_string)
     #     space_removed_string = w[1]
     #     #modified_input=modified_input.replace(space_removed_string, main_string)
     #     modified_input=modified_input.replace(space_removed_string, main_string_replace_space_w_bar)
-
 
     # #add the white space in the function back to revert to original input
     # for w in Class_Func_Words_white_space_removed:
@@ -477,12 +449,7 @@ def splitEdgePunct_software(input):
     #     #modified_input=modified_input.replace(space_removed_string, main_string)
     #     modified_input=modified_input.replace(space_removed_string, main_string_replace_space_w_bar)
 
-
-    
-
-   
-
-    #print("modified_input: ",modified_input)
+    # print("modified_input: ",modified_input)
 
     return modified_input
 
@@ -491,39 +458,32 @@ def splitEdgePunct_software(input):
 # 'Update the sdk version.' => 'Update the sdk version . '
 
 def Split_End_of_Sentence_Punc(token_list):
-    if len(token_list)<=1:
+    if len(token_list) <= 1:
         return token_list
-    if len(token_list[-1])==1:
-        return token_list
-
-    arbitraryAbbrev_rule=re.compile(arbitraryAbbrev)
-    list_of_abbrev= arbitraryAbbrev_rule.findall(token_list[-1])
-    if len(list_of_abbrev)>0:
+    if len(token_list[-1]) == 1:
         return token_list
 
-    list_of_punctuations=[".",":","?",";","-","!",","]
-    
-    
-    end_token=[s for s in list_of_punctuations if s==token_list[-1][-1] and s!=token_list[-1][-2]]
-    #print("end_token: ",end_token)
-    #if token_list[-1][-1]==".":
-    if len(end_token)==1:
-        end_punc_char=end_token[0]
-        token_list[-1]=token_list[-1][:-1]
+    arbitraryAbbrev_rule = re.compile(arbitraryAbbrev)
+    list_of_abbrev = arbitraryAbbrev_rule.findall(token_list[-1])
+    if len(list_of_abbrev) > 0:
+        return token_list
+
+    list_of_punctuations = [".", ":", "?", ";", "-", "!", ","]
+
+    end_token = [s for s in list_of_punctuations if s == token_list[-1][-1] and s != token_list[-1][-2]]
+    # print("end_token: ",end_token)
+    # if token_list[-1][-1]==".":
+    if len(end_token) == 1:
+        end_punc_char = end_token[0]
+        token_list[-1] = token_list[-1][:-1]
         token_list.append(end_punc_char)
     return token_list
 
 
-
-
-
-
-
-# simpleTokenize_software is adapted from simpleTokenize function of the tweet tokenizaer only 
+# simpleTokenize_software is adapted from simpleTokenize function of the tweet tokenizaer only
 
 def simpleTokenize_software(text):
-
-    # JT:2018-08:  Do the software domain specific splitting 
+    # JT:2018-08:  Do the software domain specific splitting
     splitPunctText = splitEdgePunct_software(text)
 
     textLength = len(splitPunctText)
@@ -541,9 +501,9 @@ def simpleTokenize_software(text):
     for match in Protected.finditer(splitPunctText):
         # The spans of the "bads" should not be split.
         ##print(match)
-        if (match.start() != match.end()): #unnecessary?
-            bads.append( [splitPunctText[match.start():match.end()]] )
-            badSpans.append( (match.start(), match.end()) )
+        if (match.start() != match.end()):  # unnecessary?
+            bads.append([splitPunctText[match.start():match.end()]])
+            badSpans.append((match.start(), match.end()))
     ##print("bads: ",bads)
     # Create a list of indices to create the "goods", which can be
     # split. We are taking "bad" spans like
@@ -561,7 +521,7 @@ def simpleTokenize_software(text):
     # Group the indices and map them to their respective portion of the string
     splitGoods = []
     for i in range(0, len(indices), 2):
-        goodstr = splitPunctText[indices[i]:indices[i+1]]
+        goodstr = splitPunctText[indices[i]:indices[i + 1]]
         splitstr = goodstr.strip().split(" ")
         splitGoods.append(splitstr)
 
@@ -577,18 +537,17 @@ def simpleTokenize_software(text):
     # Uncomment to get "you 're"
     splitStr = []
     for tok in zippedStr:
-       splitStr.extend(splitToken(tok))
+        splitStr.extend(splitToken(tok))
     zippedStr = splitStr
     ##print("zippedStr: ",zippedStr)
     return zippedStr
 
-    #zippedStr_updated=Split_End_of_Sentence_Punc(zippedStr)
+    # zippedStr_updated=Split_End_of_Sentence_Punc(zippedStr)
 
     # #print("zippedStr", zippedStr)
     # #print("zippedStr_updated", zippedStr_updated)
 
-    #return zippedStr_updated
-
+    # return zippedStr_updated
 
 
 def addAllnonempty(master, smaller):
@@ -598,9 +557,11 @@ def addAllnonempty(master, smaller):
             master.append(strim)
     return master
 
+
 # "foo   bar " => "foo bar"
 def squeezeWhitespace(input):
     return Whitespace.sub(" ", input).strip()
+
 
 # Final pass tokenization based on special patterns
 def splitToken(token):
@@ -608,6 +569,7 @@ def splitToken(token):
     if m:
         return [m.group(1), m.group(2)]
     return [token]
+
 
 # Assume 'text' has no HTML escaping.
 def tokenize_text(text):
@@ -626,203 +588,206 @@ def normalizeTextForTagger(text):
 # JT: 2018-08:  Split_On_Multiple_Dot(input_word), 
 # 'the queries....it' => "queries .... it"
 def Split_On_Multiple_Dot(input_word):
-    new_tokens=[input_word]
-    if len(input_word)<=0: 
+    new_tokens = [input_word]
+    if len(input_word) <= 0:
         return new_tokens
 
-    multiple_dot=r'\w*[.][.]+\w*'
-    multiple_dot_rule=re.compile(multiple_dot)
+    multiple_dot = r'\w*[.][.]+\w*'
+    multiple_dot_rule = re.compile(multiple_dot)
     words_with_multiple_dots = multiple_dot_rule.findall(input_word)
 
-    new_tokens=[]
+    new_tokens = []
     for word in words_with_multiple_dots:
-        splitter=""
-        for i in range(0,word.count(".")):
-            splitter+="."
+        splitter = ""
+        for i in range(0, word.count(".")):
+            splitter += "."
         word_splitted = word.split(splitter)
-        
-        split_word_index=0
+
+        split_word_index = 0
         for split_word in word_splitted:
-            if split_word =="":continue
-            if split_word_index>0:
+            if split_word == "": continue
+            if split_word_index > 0:
                 new_tokens.append(splitter)
             new_tokens.append(split_word)
-            split_word_index+=1
-        if split_word_index==1:
+            split_word_index += 1
+        if split_word_index == 1:
             new_tokens.append(splitter)
     return new_tokens
+
 
 # JT:2018-08: Split_On_Non_function_end_parenthesis(input_word) splits the surrounding parenthesis of a word only if the word is not a function
 # '{"kind"=>"GGG"}' =>>  ' { "kind"=>"GGG" } '
 def Split_On_Non_function_end_parenthesis(input_word):
     ##print("input_word for Split_On_Non_function_end_parenthesis:", input_word)
-    new_token=[input_word]
+    new_token = [input_word]
 
-    if len(input_word)==1:
+    if len(input_word) == 1:
         return new_token
 
-    #if the word is from a numbered list do not split end bracket
-    numbered_list_rule=re.compile(Numbered_List)
+    # if the word is from a numbered list do not split end bracket
+    numbered_list_rule = re.compile(Numbered_List)
     numbered_list_words = numbered_list_rule.findall(input_word)
 
-    if len(numbered_list_words)>0:
+    if len(numbered_list_words) > 0:
         return new_token
 
-    #if the word is from a emoticon do not split end bracket
-    emoticon_rule=re.compile(emoticon)
+    # if the word is from a emoticon do not split end bracket
+    emoticon_rule = re.compile(emoticon)
     emoticon_words = emoticon_rule.findall(input_word)
 
-    if len(emoticon_words)>0:
+    if len(emoticon_words) > 0:
         return new_token
 
-    #if the word is from a class function do not split end bracket
-    class_func_name_rule=re.compile(Class_Func_Name)
+    # if the word is from a class function do not split end bracket
+    class_func_name_rule = re.compile(Class_Func_Name)
     class_func_words = class_func_name_rule.findall(input_word)
 
-    if len(class_func_words)>0:
+    if len(class_func_words) > 0:
         return new_token
 
-    #if the word is from a function do not split end bracket
-    func_name_rule=re.compile(Func_Name)
+    # if the word is from a function do not split end bracket
+    func_name_rule = re.compile(Func_Name)
     func_words = func_name_rule.findall(input_word)
-    if len(func_words)>0:
+    if len(func_words) > 0:
         return new_token
 
-    #otherwise check if there is any end bracket, if then add space infront of it
+    # otherwise check if there is any end bracket, if then add space infront of it
     if ")" in input_word and "(" not in input_word:
-        input_word_updated=input_word.replace(")"," ) ")
-        new_token=[input_word_updated]
+        input_word_updated = input_word.replace(")", " ) ")
+        new_token = [input_word_updated]
     elif "(" in input_word and ")" not in input_word:
-        input_word_updated=input_word.replace("("," ( ")
-        new_token=[input_word_updated]
+        input_word_updated = input_word.replace("(", " ( ")
+        new_token = [input_word_updated]
 
     elif "]" in input_word and "[" not in input_word:
-        input_word_updated=input_word.replace("]"," ] ")
-        new_token=[input_word_updated]
+        input_word_updated = input_word.replace("]", " ] ")
+        new_token = [input_word_updated]
 
     elif "[" in input_word and "]" not in input_word:
-        input_word_updated=input_word.replace("["," [ ")
-        new_token=[input_word_updated]
-    
+        input_word_updated = input_word.replace("[", " [ ")
+        new_token = [input_word_updated]
+
     return new_token
+
 
 # JT: 2018-08: Split_On_last_letter_Colon_Mark(input_word) will create a spcace between Quote and letter
 # ' Example:"'=>'Example :"'
 def Split_On_last_letter_Colon_Mark(input_word):
-    #print("inside Split_On_last_letter_Punc_Mark", input_word, len(input_word))
-    new_token=[input_word]
-    if len(input_word)<=0: 
+    # print("inside Split_On_last_letter_Punc_Mark", input_word, len(input_word))
+    new_token = [input_word]
+    if len(input_word) <= 0:
         return new_token
 
-    sp_rule=re.compile(SPECIAL_WORDS)
-    sp_rule_words=sp_rule.findall(input_word)
-    if len(sp_rule_words)<=0:
+    sp_rule = re.compile(SPECIAL_WORDS)
+    sp_rule_words = sp_rule.findall(input_word)
+    if len(sp_rule_words) <= 0:
         return new_token
 
-    
-    if len(input_word)==1:
+    if len(input_word) == 1:
         return new_token
 
-    #if count of ":" is more than word then it is probably a word mentioning a class name, so then we are not going to split it
-    if input_word.count(":")>1:
+    # if count of ":" is more than word then it is probably a word mentioning a class name, so then we are not going to split it
+    if input_word.count(":") > 1:
         return new_token
-    #if is not a class name, then we are going to add space before token, Netbeans: >> Netbeans :
-    if input_word[-1]==":":
-        input_word_updated=input_word[:-1]
-        #input_word_updated=input_word[:-1]+' :'
+    # if is not a class name, then we are going to add space before token, Netbeans: >> Netbeans :
+    if input_word[-1] == ":":
+        input_word_updated = input_word[:-1]
+        # input_word_updated=input_word[:-1]+' :'
         ##print("input_word_updated: ", input_word_updated)
-        new_token=[input_word_updated,":"]
+        new_token = [input_word_updated, ":"]
     return new_token
+
 
 # JT: 2018-08: Split_On_last_letter_Quote_Mark(input_word) will create a spcace between Quote and letter
 # ' Netbeans"'=>'Netbeans "'
 def Split_On_last_letter_Quote_Mark(input_word):
     ##print("input_word for Split_On_Non_function_end_parenthesis:", input_word)
-    new_token=[input_word]
+    new_token = [input_word]
 
-    if len(input_word)<=1:
+    if len(input_word) <= 1:
         return new_token
 
-    #if the word is from a class function do not split end bracket
-    class_func_name_rule=re.compile(Class_Func_Name)
+    # if the word is from a class function do not split end bracket
+    class_func_name_rule = re.compile(Class_Func_Name)
     class_func_words = class_func_name_rule.findall(input_word)
 
-    if len(class_func_words)>0:
+    if len(class_func_words) > 0:
         return new_token
 
-    #if the word is from a function do not split end bracket
-    func_name_rule=re.compile(Func_Name)
+    # if the word is from a function do not split end bracket
+    func_name_rule = re.compile(Func_Name)
     func_words = func_name_rule.findall(input_word)
-    if len(func_words)>0:
+    if len(func_words) > 0:
         return new_token
-    if input_word.count("'")==1 and input_word[-1]=="'":
-        #input_word_updated=input_word[:-1]+" '"
-        #new_token=[input_word_updated]
-        input_word_updated=input_word[:-1]
-        new_token=[input_word_updated," '"]
-    
-    if input_word.count('"')==1 and input_word[-1]=='"':
-        #input_word_updated=input_word[:-1]+' "'
-        #new_token=[input_word_updated]
-        input_word_updated=input_word[:-1]
-        new_token=[input_word_updated,' "']
-    
-        
-    
+    if input_word.count("'") == 1 and input_word[-1] == "'":
+        # input_word_updated=input_word[:-1]+" '"
+        # new_token=[input_word_updated]
+        input_word_updated = input_word[:-1]
+        new_token = [input_word_updated, " '"]
+
+    if input_word.count('"') == 1 and input_word[-1] == '"':
+        # input_word_updated=input_word[:-1]+' "'
+        # new_token=[input_word_updated]
+        input_word_updated = input_word[:-1]
+        new_token = [input_word_updated, ' "']
+
     return new_token
+
 
 # JT: 2018-08: Split_Words_Inside_Parenthesis(input_word) will create a in between spcace between parenthesis words
 # '{2,4,5,6,7,8}' => ' { 2 , 4 , 5 , 6 , 7 , 8 } ' 
 
 def Split_Words_Inside_Parenthesis(input_word):
-    new_token=[input_word]
-    if len(input_word)<=0:
+    new_token = [input_word]
+    if len(input_word) <= 0:
         return new_token
 
-    if (input_word[0]=="[" and input_word[-1]=="]") or (input_word[0]=="{"and input_word[-1]=="}") or (input_word[0]=="("and input_word[-1]==")"):
-        #print(input_word)
-        input_word = input_word.replace(","," , ")
-        input_word = input_word.replace("{"," { ")
-        input_word = input_word.replace("}"," } ")
-        input_word = input_word.replace("["," [ ")
-        input_word = input_word.replace("]"," ] ")
-        new_token=[input_word]
-        #print(input_word)
+    if (input_word[0] == "[" and input_word[-1] == "]") or (input_word[0] == "{" and input_word[-1] == "}") or (
+            input_word[0] == "(" and input_word[-1] == ")"):
+        # print(input_word)
+        input_word = input_word.replace(",", " , ")
+        input_word = input_word.replace("{", " { ")
+        input_word = input_word.replace("}", " } ")
+        input_word = input_word.replace("[", " [ ")
+        input_word = input_word.replace("]", " ] ")
+        new_token = [input_word]
+        # print(input_word)
     return new_token
+
 
 # JT: 2018-08: Split_Parenthesis_At_End_of_URL(input_word) will split the end of closing parenthesis from the input word if the input word is a url
 # 'https://www.sample-videos.com/text/Sample-text-file-10kb.txt)' => 'https://www.sample-videos.com/text/Sample-text-file-10kb.txt )'
 # 'https://www.sample-videos.com/text/(Sample-text-file-10kb.txt)' => 'https://www.sample-videos.com/text/(Sample-text-file-10kb.txt)'
 
 def Split_Parenthesis_At_End_of_URL(input_word):
-    new_token=[input_word]
-    if len(input_word)<=0:
+    new_token = [input_word]
+    if len(input_word) <= 0:
         return new_token
-        
-    url_rule=re.compile(url)
+
+    url_rule = re.compile(url)
     url_words = url_rule.findall(input_word)
     word_wo_balanced_paren = []
     for word in url_words:
         bal_paren_word = find_word_w_balanced_paren(word)
-        if len(bal_paren_word)==0:
+        if len(bal_paren_word) == 0:
             word_wo_balanced_paren.append(word)
-    if len(url_words)>0 and len(word_wo_balanced_paren)>0:
-        if input_word[-1]==")" or input_word[-1]=="]" or input_word=="}":
-            main_url=input_word[:-1]
-            end_paren=")"
-            new_token=[main_url,end_paren]
-            #print(input_word2)
+    if len(url_words) > 0 and len(word_wo_balanced_paren) > 0:
+        if input_word[-1] == ")" or input_word[-1] == "]" or input_word == "}":
+            main_url = input_word[:-1]
+            end_paren = ")"
+            new_token = [main_url, end_paren]
+            # print(input_word2)
 
-
-    #print(url_words)
+    # print(url_words)
     return new_token
 
+
 def Split_Punc_At_End_of_Word(input_word):
-    new_token=[input_word]
-    list_of_punctuations=[".",":","?",";","-","!",","]
+    new_token = [input_word]
+    list_of_punctuations = [".", ":", "?", ";", "-", "!", ","]
     if input_word[-1] in list_of_punctuations:
-        new_token=[]
-        wo_punc_word=input_word[:-1]
+        new_token = []
+        wo_punc_word = input_word[:-1]
         punc_mark = input_word[-1]
         new_token.append(wo_punc_word)
         new_token.append(punc_mark)
@@ -831,202 +796,192 @@ def Split_Punc_At_End_of_Word(input_word):
 
 
 def SO_Tokenizer_wrapper(tokens):
-    #print("input token to SO_TOkenizer_wrapper: ",tokens)
-    end_of_sent_punc_split_tokens=Split_End_of_Sentence_Punc(tokens)
-    end_of_word_punc_split_tokens=[]
+    # print("input token to SO_TOkenizer_wrapper: ",tokens)
+    end_of_sent_punc_split_tokens = Split_End_of_Sentence_Punc(tokens)
+    end_of_word_punc_split_tokens = []
 
-    for w in end_of_sent_punc_split_tokens: 
+    for w in end_of_sent_punc_split_tokens:
         end_of_word_punc_split_tokens.extend((Split_Punc_At_End_of_Word(w)))
-    
-    dot_split_tokens=[]
+
+    dot_split_tokens = []
 
     for token in end_of_word_punc_split_tokens:
         multiple_dot_splitted_result = Split_On_Multiple_Dot(token)
-        if len(multiple_dot_splitted_result)==0:
+        if len(multiple_dot_splitted_result) == 0:
             dot_split_tokens.append(token)
             continue
         dot_split_tokens.extend(multiple_dot_splitted_result)
 
-    end_parenthesis_split_tokens=[]
+    end_parenthesis_split_tokens = []
 
     for token in dot_split_tokens:
         end_parenthesis_split_tokens.extend(Split_On_Non_function_end_parenthesis(token))
 
-    end_paren_split_tokens=[]
+    end_paren_split_tokens = []
     for token in end_parenthesis_split_tokens:
         end_paren_split_tokens.extend(Split_On_last_letter_Colon_Mark(token))
 
-    end_of_quote_split_tokens=[]
+    end_of_quote_split_tokens = []
     for token in end_paren_split_tokens:
         end_of_quote_split_tokens.extend(Split_On_last_letter_Quote_Mark(token))
 
-    inside_parenthesis_split_words=[]
+    inside_parenthesis_split_words = []
     for token in end_of_quote_split_tokens:
         inside_parenthesis_split_words.extend(Split_Words_Inside_Parenthesis(token))
 
-    
-
-    url_word_end_paren_removed_tokens=[]
+    url_word_end_paren_removed_tokens = []
     for token in inside_parenthesis_split_words:
         url_word_end_paren_removed_tokens.extend(Split_Parenthesis_At_End_of_URL(token))
 
+    new_tokens = url_word_end_paren_removed_tokens
 
-    new_tokens=url_word_end_paren_removed_tokens
-
-
-    multi_space_removed_tokens=[]
+    multi_space_removed_tokens = []
     for w in new_tokens:
-        #print(w,len(w))
-        w =re.sub( '\s+', ' ',w).strip()
-        
-        #print(w,len(w))
+        # print(w,len(w))
+        w = re.sub('\s+', ' ', w).strip()
+
+        # print(w,len(w))
         multi_space_removed_tokens.append(w)
 
-
-    
-
-   
-    new_token=multi_space_removed_tokens
+    new_token = multi_space_removed_tokens
     # print("new_tokens", new_tokens)
 
     return new_tokens
 
-def match_paren(current,previous):
-    if current==")" and previous=="(":
+
+def match_paren(current, previous):
+    if current == ")" and previous == "(":
         return True
-    if current=="}" and previous=="{":
+    if current == "}" and previous == "{":
         return True
-    if current=="]" and previous=="[":
+    if current == "]" and previous == "[":
         return True
     return False
 
+
 def find_word_w_balanced_paren(line):
-    list_of_w_balaned_parentheses=[]
-    opening_barckets=["(","[","{"]
-    closing_barckets=[")","]","}"]
+    list_of_w_balaned_parentheses = []
+    opening_barckets = ["(", "[", "{"]
+    closing_barckets = [")", "]", "}"]
     for word in line.split():
-        count_first=word.count("(")
-        count_second=word.count("{")
-        count_third=word.count("[")
-        if count_first+count_second+count_third <=1 and (word[0]=="(" or word[0]=="{" and word[0]=="["): continue
-        stack=[]
-        paren_found=False
-        paren_balanced=False
-        if "(" in word and ")" not in word or ")" in word and "(" not in word: 
+        count_first = word.count("(")
+        count_second = word.count("{")
+        count_third = word.count("[")
+        if count_first + count_second + count_third <= 1 and (
+                word[0] == "(" or word[0] == "{" and word[0] == "["): continue
+        stack = []
+        paren_found = False
+        paren_balanced = False
+        if "(" in word and ")" not in word or ")" in word and "(" not in word:
             continue
-        if "{" in word and "}" not in word or "}" in word and "{" not in word: 
+        if "{" in word and "}" not in word or "}" in word and "{" not in word:
             continue
-        if "[" in word and "]" not in word or "]" in word and "[" not in word: 
+        if "[" in word and "]" not in word or "]" in word and "[" not in word:
             continue
         for char in word:
             if char in opening_barckets:
                 ##print(word,char)
-                paren_found=True
+                paren_found = True
                 stack.append(char)
             if char in closing_barckets:
                 ##print(word,char)
-                if len(stack)>0:
-                    prev_paren=stack.pop()
+                if len(stack) > 0:
+                    prev_paren = stack.pop()
                     ##print(char,prev_paren)
-                    paren_balanced=match_paren(char,prev_paren)
+                    paren_balanced = match_paren(char, prev_paren)
                     ##print(paren_balanced)
-                if paren_balanced==False:
+                if paren_balanced == False:
                     break
-        if len(stack)==0 and paren_found==True and paren_balanced==True:
+        if len(stack) == 0 and paren_found == True and paren_balanced == True:
             list_of_w_balaned_parentheses.append(word)
-            
+
     return list_of_w_balaned_parentheses
 
 
 def Mask_Nested_Paren_HTML_Word(text):
-    base=""
-    counter=0
-    Nested_Parenthesis_Words_Dict={}
+    base = ""
+    counter = 0
+    Nested_Parenthesis_Words_Dict = {}
 
-    for i in range(0,80):
-        base+="x"
+    for i in range(0, 80):
+        base += "x"
     ##print(base)
-    HTML_Tag_Rule=re.compile(HTML_Tag)
+    HTML_Tag_Rule = re.compile(HTML_Tag)
     HTML_Tag_Words = HTML_Tag_Rule.findall(text)
 
-    #print("HTML_Tag_Words: ",HTML_Tag_Words)
+    # print("HTML_Tag_Words: ",HTML_Tag_Words)
 
     for w in HTML_Tag_Words:
-        counter+=1
-        mask_string=base+str(counter)
-        #print("mask stirng: ", mask_string)
-        Nested_Parenthesis_Words_Dict[mask_string]=w
-        #print("text before replace: ",text)
-        text=text.replace(w,mask_string)
-        #print("text after replace: ",text)
+        counter += 1
+        mask_string = base + str(counter)
+        # print("mask stirng: ", mask_string)
+        Nested_Parenthesis_Words_Dict[mask_string] = w
+        # print("text before replace: ",text)
+        text = text.replace(w, mask_string)
+        # print("text after replace: ",text)
 
-    #print("HTML_masked_text: ",text)
+    # print("HTML_masked_text: ",text)
     Neseted_Paren_Words = find_word_w_balanced_paren(text)
-    
-    #print("Neseted_Paren_Words from Mask_Nested_Parenthesis_Words: ",Neseted_Paren_Words)
-    
-    
-    modified_text_input=[]
+
+    # print("Neseted_Paren_Words from Mask_Nested_Parenthesis_Words: ",Neseted_Paren_Words)
+
+    modified_text_input = []
     for word in text.split():
         if word in Neseted_Paren_Words:
-            #c#print(word)
-            counter+=1
-            mask_string=base+str(counter)
-            Nested_Parenthesis_Words_Dict[mask_string]=word
+            # c#print(word)
+            counter += 1
+            mask_string = base + str(counter)
+            Nested_Parenthesis_Words_Dict[mask_string] = word
             modified_text_input.append(mask_string)
         else:
             modified_text_input.append(word)
-    #print("modified_text_input tokens: ", modified_text_input)
-    modified_text_input_str=" ".join(modified_text_input)
-    return (Nested_Parenthesis_Words_Dict, modified_text_input_str,base)
+    # print("modified_text_input tokens: ", modified_text_input)
+    modified_text_input_str = " ".join(modified_text_input)
+    return (Nested_Parenthesis_Words_Dict, modified_text_input_str, base)
 
 
+def Resotre_Masked_Words(tokens, nested_parenthesis_words_dict, base):
+    tokens_unmasked = []
+    # print("input to Resotre_Masked_Words: ", tokens, nested_parenthesis_words_dict)
+    # print("nested_parenthesis_words_dict : ",nested_parenthesis_words_dict)
+    mask_base = ""
+    mask_base = ""
 
-def Resotre_Masked_Words(tokens,nested_parenthesis_words_dict, base):
-    tokens_unmasked= []
-    #print("input to Resotre_Masked_Words: ", tokens, nested_parenthesis_words_dict)
-    #print("nested_parenthesis_words_dict : ",nested_parenthesis_words_dict)
-    mask_base=""
-    mask_base=""
-
-
-    for i in range(0,79):
-        mask_base+="x"
+    for i in range(0, 79):
+        mask_base += "x"
     for token in tokens:
-        #print("token: ",token)
-        token_nested=False
-        mask_val=""
+        # print("token: ",token)
+        token_nested = False
+        mask_val = ""
         for nested_word in nested_parenthesis_words_dict:
-            #print(nested_words)
+            # print(nested_words)
             if nested_word in token:
-                token_nested=True
-                mask_val=nested_word
+                token_nested = True
+                mask_val = nested_word
                 break
-        if token_nested and mask_val!="":
-            main_word=nested_parenthesis_words_dict[mask_val]
-            unmasked_word=token.replace(mask_val, main_word)
+        if token_nested and mask_val != "":
+            main_word = nested_parenthesis_words_dict[mask_val]
+            unmasked_word = token.replace(mask_val, main_word)
             tokens_unmasked.append(unmasked_word)
         else:
             tokens_unmasked.append(token)
-
 
         # if token not in nested_parenthesis_words_dict:
         #     tokens_unmasked.append(token)
         # else:
         #     main_word=nested_parenthesis_words_dict[token]
         #     tokens_unmasked.append(main_word)
-    tokens_unmasked_wrapper=[]
+    tokens_unmasked_wrapper = []
     for token in tokens_unmasked:
         if base in token:
-            split_token=token.split()
+            split_token = token.split()
             for t in split_token:
                 if t in nested_parenthesis_words_dict:
-                    t=nested_parenthesis_words_dict[t]
+                    t = nested_parenthesis_words_dict[t]
                 tokens_unmasked_wrapper.append(t)
         else:
             tokens_unmasked_wrapper.append(token)
 
-            
     ##print(len(tokens_unmaskedc))
     return tokens_unmasked_wrapper
 
@@ -1036,73 +991,70 @@ def Resotre_Masked_Words(tokens,nested_parenthesis_words_dict, base):
 # This function normalizes the input text BEFORE calling the tokenizer.
 # So the tokens you get back may not exactly correspond to
 # substrings of the original text.
-
 def tokenize(text):
     ##print("main input to tokenizer: ",text)
-    (nested_parenthesis_words_dict , nested_paren_masked_text ,base) = Mask_Nested_Paren_HTML_Word(text)
+    (nested_parenthesis_words_dict, nested_paren_masked_text, base) = Mask_Nested_Paren_HTML_Word(text)
     # print("nested_paren_masked_text: ", nested_paren_masked_text)
     # print("nested_parenthesis_words_dict: ", nested_parenthesis_words_dict)
     # print("nested_paren_masked_text: ",nested_paren_masked_text)
     tokens = tokenize_text(normalizeTextForTagger(nested_paren_masked_text))
 
-    tokens_unmasked=Resotre_Masked_Words(tokens,nested_parenthesis_words_dict,base)
+    tokens_unmasked = Resotre_Masked_Words(tokens, nested_parenthesis_words_dict, base)
     ##print("tokens_unmasked: ", tokens_unmasked)
     tokens_wrapped = SO_Tokenizer_wrapper(tokens_unmasked)
 
     # tokens_removed_empty=[w for w in tokens_wrapped if w.strip()!='']
-    tokens_removed_empty=[w for w in tokens_wrapped if w.strip()!='']
-    output=[]
+    tokens_removed_empty = [w for w in tokens_wrapped if w.strip() != '']
+    output = []
     for w in tokens_removed_empty:
-        w_split=w.split(" ")
-        if len(w_split)>1:
+        w_split = w.split(" ")
+        if len(w_split) > 1:
             output.extend(w_split)
         else:
             output.append(w)
 
-
-    
     # print("tokens_removed_empty: ",tokens_removed_empty)
     # return tokens_wrapped
     # return tokens_removed_empty
     return output
 
-def White_Space_Remove_From_Word(word,filler_string=""):
-    white_space_removed_word=""
+
+def White_Space_Remove_From_Word(word, filler_string=""):
+    white_space_removed_word = ""
     for w in word.split():
-        if w.strip()=="":
+        if w.strip() == "":
             continue
-        white_space_removed_word+=filler_string+w
+        white_space_removed_word += filler_string + w
     return white_space_removed_word
+
 
 if __name__ == '__main__':
     # for line in sys.stdin:
     #     #print(' '.join(tokenizeRawTweetText(line)))
-   # text="In js $http.get().success GNU/Linux 4.2.6-200.fc22.x86_64 you call entityManager.fetchMetadata().then(success, failed) method's first data parameter in templates/your_template/index.php;"
-    #text='I do think that the request I send to my API\'s should be more like {post=>{"kind"=>"GGG"}} and not {"kind"=>"GGG"} of I have to find a way for my api to work with the request I send now.'
-    #text="I tried to add a manual refresh on the history.state change, I found something like this:"
-    #text="In js you call entityManager.fetchMetadata().then(success, failed); After the promise of fetchMetadata() is resolved, breeze metadata of variable entityManager is full-filled and you can start working with your server-side objects in js with breeze!"
-    #text="Then in vs. e.g. another file (res.php) I have a sql request and I display results ."
-    #text="Modify the img tag like: <'img src=\"<'c:url value='<%=request.getContextPath()%>/images/logo.jpg'> "
-    #text="The KafkaMessageDrivenChannelAdapter (<int-kafka:message-driven-channel-adapter>) is for you!"
-    #text="keys() doesn't return a Set, it returns an Enumeration<K>."
-    #text="localhost:9200/_search"
-    #text="Finally, since O((n^2 , n) 2) = O(n^2) you get that the terms that include the sum dominate the runtime and that is why the algorithm is O(n^2)"
-    #text="apache_setenv('sessionID', session_id(), TRUE)"
-    #text=":)"
+    # text="In js $http.get().success GNU/Linux 4.2.6-200.fc22.x86_64 you call entityManager.fetchMetadata().then(success, failed) method's first data parameter in templates/your_template/index.php;"
+    # text='I do think that the request I send to my API\'s should be more like {post=>{"kind"=>"GGG"}} and not {"kind"=>"GGG"} of I have to find a way for my api to work with the request I send now.'
+    # text="I tried to add a manual refresh on the history.state change, I found something like this:"
+    # text="In js you call entityManager.fetchMetadata().then(success, failed); After the promise of fetchMetadata() is resolved, breeze metadata of variable entityManager is full-filled and you can start working with your server-side objects in js with breeze!"
+    # text="Then in vs. e.g. another file (res.php) I have a sql request and I display results ."
+    # text="Modify the img tag like: <'img src=\"<'c:url value='<%=request.getContextPath()%>/images/logo.jpg'> "
+    # text="The KafkaMessageDrivenChannelAdapter (<int-kafka:message-driven-channel-adapter>) is for you!"
+    # text="keys() doesn't return a Set, it returns an Enumeration<K>."
+    # text="localhost:9200/_search"
+    # text="Finally, since O((n^2 , n) 2) = O(n^2) you get that the terms that include the sum dominate the runtime and that is why the algorithm is O(n^2)"
+    # text="apache_setenv('sessionID', session_id(), TRUE)"
+    # text=":)"
     # #print("input text: ",text)
     # text="Lines 2, 4, and 8 run in O(1) time, so {2,4,5,6,7,8} run in O(1 + 1 + A.Length + 1) = O(A.Length)time."
     # text='Use android:button"@btmImage link"'
-    #text="[ERROR] [gwtearthdemo] - Line 96:  O(1) time, so {2,4,5,6,7,8} run in O(1 + 1 + A.Length + 1) = O(A.Length)time."
-    #text="So when we write a function like preorderTree :: Tree a -> [a]."
-    #text="But now that the div's are vs. floating, they don't push #main's white background down c.net."
-    #text="Example: I've confirmed that if I pass a url to some other sample url like (https://www.sample-videos.com/text/Sample-text-file-10kb.txt), my custom webview and google docs will display the results correctly, so the failure only happens when using a url/download going to our custom server."
-    #text="Lines 2, 4, and 8 run in O(1) time, so {2,4,5,6,7,8} run in O(1 + 1 + A.Length + 1) = O(A.Length)time."
+    # text="[ERROR] [gwtearthdemo] - Line 96:  O(1) time, so {2,4,5,6,7,8} run in O(1 + 1 + A.Length + 1) = O(A.Length)time."
+    # text="So when we write a function like preorderTree :: Tree a -> [a]."
+    # text="But now that the div's are vs. floating, they don't push #main's white background down c.net."
+    # text="Example: I've confirmed that if I pass a url to some other sample url like (https://www.sample-videos.com/text/Sample-text-file-10kb.txt), my custom webview and google docs will display the results correctly, so the failure only happens when using a url/download going to our custom server."
+    # text="Lines 2, 4, and 8 run in O(1) time, so {2,4,5,6,7,8} run in O(1 + 1 + A.Length + 1) = O(A.Length)time."
     # text="TextView       has setText(String), but when looking on the Doc, I don't see one for GridLayout."
     # text="Even when I       use SKAction.animateWithTextures(atlasFrames, timePerFrame: 0.1, resize: true, restore: false), with resize set to true and false, the problem persists."
-    text="C(Rest API)"
-    print("main text: ",text)
+    text = "C(Rest API)"
+    print("main text: ", text)
     tokens = tokenize(text)
-    print("output tokens: ",tokens)
-    print("output: "," ".join(tokens))
-
-    
+    print("output tokens: ", tokens)
+    print("output: ", " ".join(tokens))

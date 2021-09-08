@@ -1,19 +1,14 @@
 import optparse
 import argparse
 from collections import OrderedDict
-import torch 
-import utils_so as utils
+import torch
 import os
 
-
 from datetime import date
+
 today = str(date.today())
 
-
 torch.backends.cudnn.deterministic = True
-
-
-
 
 optparser = optparse.OptionParser()
 parser = argparse.ArgumentParser()
@@ -89,7 +84,7 @@ parser.add_argument(
     "-B", "--word_bidirect", default="1",
     type=int, help="Use a bidirectional LSTM for words"
 )
-#JT
+# JT
 # parser.add_argument(
 #     "-p", "--pre_emb", default="models/glove.6B.100d.txt",
 #     help="Location of pretrained embeddings"
@@ -142,7 +137,7 @@ parser.add_argument(
     '--char_mode', choices=['CNN', 'LSTM'], default='CNN',
     help='char_CNN or char_LSTM'
 )
-#JT
+# JT
 parser.add_argument(
     '-use_pre_emb', '--use_pre_emb', default="0",
     type=int, help="Use pretrained emebdding (0 to disable)"
@@ -156,30 +151,26 @@ parser.add_argument(
     help='which type of entity is intended to classify'
 )
 parser.add_argument(
-    '-seed','--seed', default=9911, type=int, 
+    '-seed', '--seed', default=9911, type=int,
     help='which value to use for torch and numpy seed'
 )
 parser.add_argument(
-    '-lr','--lr', default=0.015, type=float, 
+    '-lr', '--lr', default=0.015, type=float,
     help='which learning rate to use'
 )
 parser.add_argument(
-    '-epochs','--epochs', default=100, type=int, 
+    '-epochs', '--epochs', default=100, type=int,
     help='number of epochs to train'
 )
 parser.add_argument(
-    '-file_identifier','--file_identifier', default="", type=str, 
+    '-file_identifier', '--file_identifier', default="", type=str,
     help='file_identifier'
 )
 
-
 parser.add_argument(
-    '-segmentation_only','--segmentation_only', default=0, type=int, 
+    '-segmentation_only', '--segmentation_only', default=0, type=int,
     help='"If we should do segmentation only (1 to enable)'
 )
-
-
-
 
 parser.add_argument(
     "-use_elmo", '--use_elmo', default='1',
@@ -190,8 +181,6 @@ parser.add_argument(
     "-use_elmo_w_char", '--use_elmo_w_char', default='0',
     type=int, help='whether or not to ues elmo with char embeds'
 )
-
-
 
 parser.add_argument(
     "-use_freq_vector", '--use_freq_vector', default='0',
@@ -212,8 +201,6 @@ parser.add_argument(
     type=float, help='the width of each bin for the gaussian binning of the frequency vector'
 )
 
-
-
 parser.add_argument(
     "-use_markdown_vector", '--use_markdown_vector', default='1',
     type=int, help='whether or not to ues the markdown from stackoverflow meta data'
@@ -227,29 +214,21 @@ parser.add_argument(
     type=int, help='whether or not to ues HAN networkd'
 )
 
-
 opts = parser.parse_args()
 # print(args.char_mode)
 # print(opts)
 
 parameters = OrderedDict()
 
-parameters['seed']=opts.seed
-
-
+parameters['seed'] = opts.seed
 
 torch.manual_seed(parameters['seed'])
 
+parameters["train_pred"] = 'auxilary_inputs_ner/segmenter_pred/segmenter_pred_train.txt'
+parameters["dev_pred"] = 'auxilary_inputs_ner/segmenter_pred/segmenter_pred_dev.txt'
+parameters["test_pred"] = 'auxilary_inputs_ner/segmenter_pred/segmenter_pred_test.txt'
 
-parameters["train_pred"]='auxilary_inputs_ner/segmenter_pred/segmenter_pred_train.txt'
-parameters["dev_pred"]='auxilary_inputs_ner/segmenter_pred/segmenter_pred_dev.txt'
-parameters["test_pred"]='auxilary_inputs_ner/segmenter_pred/segmenter_pred_test.txt'
-
-
-
-
-parameters["ctc_pred"]='auxilary_inputs_ner/ctc_pred.tsv'
-
+parameters["ctc_pred"] = 'auxilary_inputs_ner/ctc_pred.tsv'
 
 parameters['tag_scheme'] = opts.tag_scheme
 parameters['lower'] = opts.lower == 1
@@ -271,85 +250,66 @@ parameters['char_mode'] = opts.char_mode
 
 parameters['use_gpu'] = opts.use_gpu == 1 and torch.cuda.is_available()
 
-
-
-
-
 use_gpu = parameters['use_gpu']
 parameters["gpu_id"] = opts.gpu_id
 
-parameters['use_pre_emb']=  opts.use_pre_emb == 1
-parameters['merge_tags']=  opts.merge_tags == 1
+parameters['use_pre_emb'] = opts.use_pre_emb == 1
+parameters['merge_tags'] = opts.merge_tags == 1
 parameters['entity_category'] = opts.entity_category
-parameters['segmentation_only']=  opts.segmentation_only == 1
+parameters['segmentation_only'] = opts.segmentation_only == 1
 
-
-if opts.file_identifier=="":
-    file_identifier = str(today)+"_"+str(parameters["seed"])+"_"
+if opts.file_identifier == "":
+    file_identifier = str(today) + "_" + str(parameters["seed"]) + "_"
 else:
-    file_identifier=opts.file_identifier
+    file_identifier = opts.file_identifier
 
-
-
-parameters["models_path"] = "./models_"+file_identifier
+parameters["models_path"] = "./models_" + file_identifier
 parameters["eval_path"] = "./evaluation"
-parameters["eval_temp"] = os.path.join(parameters["eval_path"], "temp_"+file_identifier)
+parameters["eval_temp"] = os.path.join(parameters["eval_path"], "temp_" + file_identifier)
 parameters["eval_script"] = os.path.join(parameters["eval_path"], "conlleval")
-parameters["perf_per_epoch_file"] = "perf_per_epoch_"+file_identifier+".txt"
-parameters["sorted_entity_list_file_name"]="sorted_entity_list_by_count_all.json"
+parameters["perf_per_epoch_file"] = "perf_per_epoch_" + file_identifier + ".txt"
+parameters["sorted_entity_list_file_name"] = "sorted_entity_list_by_count_all.json"
 
+parameters["train"] = opts.train
+parameters["dev"] = opts.dev
+parameters["test"] = opts.test
+parameters["LR"] = opts.lr
+parameters["epochs"] = opts.epochs
+parameters["mode"] = opts.mode
 
-
-parameters["train"]=opts.train
-parameters["dev"]=opts.dev
-parameters["test"]=opts.test
-parameters["LR"]=opts.lr
-parameters["epochs"]=opts.epochs
-parameters["mode"]=opts.mode
-
-
-
-parameters['use_elmo'] = opts.use_elmo == 1 
-parameters['use_elmo_w_char'] = opts.use_elmo_w_char == 1 
-parameters["elmo_weight"]=opts.elmo_weight
-parameters["elmo_options"]=opts.elmo_options
+parameters['use_elmo'] = opts.use_elmo == 1
+parameters['use_elmo_w_char'] = opts.use_elmo_w_char == 1
+parameters["elmo_weight"] = opts.elmo_weight
+parameters["elmo_options"] = opts.elmo_options
 # parameters["elmo_layer"] = opts.elmo_layer
-parameters["elmo_dim"]=1024
+parameters["elmo_dim"] = 1024
 
-
-parameters['use_freq_vector'] = opts.use_freq_vector == 1 
+parameters['use_freq_vector'] = opts.use_freq_vector == 1
 parameters['freq_vector_file'] = opts.freq_vector_file
-parameters["freq_mapper_bin_count"]=int(opts.freq_mapper_bin_count)
-parameters["freq_mapper_bin_width"]=float(opts.freq_mapper_bin_width)
-parameters['freq_dim']=parameters["freq_mapper_bin_count"]+2
+parameters["freq_mapper_bin_count"] = int(opts.freq_mapper_bin_count)
+parameters["freq_mapper_bin_width"] = float(opts.freq_mapper_bin_width)
+parameters['freq_dim'] = parameters["freq_mapper_bin_count"] + 2
 
-
-parameters['use_markdown_vector'] = opts.use_markdown_vector == 1 
+parameters['use_markdown_vector'] = opts.use_markdown_vector == 1
 parameters['markdown_dim'] = 500
 parameters['markdown_count'] = 3
-
-
 
 parameters['use_segmentation_vector'] = True
 parameters['segmentation_dim'] = 500
 parameters['segmentation_count'] = 3
 
-
 parameters['use_ner_pred_vector'] = True
 parameters['ner_pred_dim'] = 500
-parameters['ner_pred_count']=41
+parameters['ner_pred_count'] = 41
 
-
-parameters['use_han'] = opts.use_han == 1 
+parameters['use_han'] = opts.use_han == 1
 
 parameters['use_code_recognizer_vector'] = True
 parameters['code_recognizer_dim'] = 300
 parameters['code_recognizer_count'] = 3
 
-
 parameters['embedding_context_vecotr_size'] = 300
 parameters['word_context_vecotr_size'] = 300
-
 
 # parameters['markdown_dim']=parameters['elmo_dim']
 # parameters['segmentation_dim']=parameters['elmo_dim']
@@ -357,21 +317,19 @@ parameters['word_context_vecotr_size'] = 300
 # parameters['ner_pred_dim']=parameters['elmo_dim']
 
 
+parameters["vocab_count_file"] = "train_vocab_w_count.json"
 
-parameters["vocab_count_file"]="train_vocab_w_count.json"
-
-
-parameters["entity_category_code"]=["Class", "Library_Class", "Class_Name",
-                        "Function", "Library_Function","Function_Name",
-                        "Variable_Name", "Library_Variable","Variable",
-                        "Library",
-                        "Code_Block",
-                        "Version", "File_Name",
-                        "Output_Block"]
-parameters["entity_category_human_language"]=[ "Data_Structure", "Data_Type", "Algorithm",
-                            "User_Interface_Element", "Device", 
-                            "Website","Organization","Website_Organization",
-                            "Application", "Language",   "File_Type", "Operating_System", "HTML_XML_Tag",
-                            "Error_Name","Keyboard_IP", "User_Name",
-                            "Output_Block"]
-
+parameters["entity_category_code"] = ["Class", "Library_Class", "Class_Name",
+                                      "Function", "Library_Function", "Function_Name",
+                                      "Variable_Name", "Library_Variable", "Variable",
+                                      "Library",
+                                      "Code_Block",
+                                      "Version", "File_Name",
+                                      "Output_Block"]
+parameters["entity_category_human_language"] = ["Data_Structure", "Data_Type", "Algorithm",
+                                                "User_Interface_Element", "Device",
+                                                "Website", "Organization", "Website_Organization",
+                                                "Application", "Language", "File_Type", "Operating_System",
+                                                "HTML_XML_Tag",
+                                                "Error_Name", "Keyboard_IP", "User_Name",
+                                                "Output_Block"]
