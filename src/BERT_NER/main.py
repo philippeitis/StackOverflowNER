@@ -13,6 +13,7 @@ from utils_ctc.config_ctc import parameters_ctc
 
 from utils_preprocess.anntoconll import conll_from_sentences
 from utils_preprocess.format_markdown import tokenize_and_annotate_post_body
+from utils_preprocess.map_text_to_char import map_text_to_char
 
 from segmenter import Segmenter
 from ner import NER
@@ -242,6 +243,46 @@ class NERInput:
             for token, pred in zip(sentence, pred_list):
                 writer.write(f"{token.word} {pred}\n")
             is_first = False
+
+    def bilou_to_spans(self, preds, sentences):
+        sentence_spans = []
+        for tokens, pred_list, sentence in zip(self.items, preds, sentences):
+            for (_, pos), token in zip(map_text_to_char(sentence, [token.word for token in tokens]), tokens):
+                token.start = pos
+
+            # [(start, text, ,
+            spans = []
+            last_pred = "O"
+            start_ind = -1
+            for i, token, pred in zip(range(len(tokens)), tokens, pred_list):
+                if last_pred == "O":
+                    if pred == "O":
+                        continue
+                    start_ind = i
+                    _, last_pred = pred.split("-")
+                    continue
+
+                try:
+                    _, pred = pred.split("-")
+                except ValueError as e:
+                    print(e)
+
+                if pred == last_pred:
+                    continue
+
+                start_token = tokens[start_ind]
+                start = start_token.start
+                end = tokens[i - 1].start + len(tokens[i - 1].word)
+                spans.append((start, sentence[start:end], last_pred))
+                last_pred = pred
+            if last_pred != "O":
+                start_token = tokens[start_ind]
+                start = start_token.start
+                end = tokens[-1].start + len(tokens[-1].word)
+                spans.append((start, sentence[start:end], last_pred))
+
+            sentence_spans.append(spans)
+        return sentence_spans
 
 
 def parse_args():
