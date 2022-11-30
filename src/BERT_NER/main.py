@@ -370,7 +370,7 @@ def ner_from_str(sentence, output, base_args):
     ner_from_segments(segment_from_sentence(sentence, "000000", ctc_model), output)
 
 
-@cli.command(context_settings=dict(
+@cli.command("repl", context_settings=dict(
     ignore_unknown_options=True,
 ))
 @click.argument('base_args', nargs=-1, type=click.UNPROCESSED)
