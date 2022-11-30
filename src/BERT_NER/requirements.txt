@@ -4,3 +4,5 @@ fasttext
 kenlm
 bs4
 seqeval
+flask
+click
